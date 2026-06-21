@@ -1,0 +1,453 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA000001 /* FlashbackRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100001 /* FlashbackRemoteApp.swift */; };
+		AA000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100002 /* ContentView.swift */; };
+		AA000003 /* CameraModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100003 /* CameraModels.swift */; };
+		AA000004 /* BLEController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100004 /* BLEController.swift */; };
+		AA000005 /* CameraViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100005 /* CameraViewModel.swift */; };
+		AA000006 /* CameraTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100006 /* CameraTab.swift */; };
+		AA000007 /* FilesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100007 /* FilesViewModel.swift */; };
+		AA000008 /* HTTPDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100008 /* HTTPDownloader.swift */; };
+		AA000010 /* FilesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100010 /* FilesTab.swift */; };
+		AA000020 /* DocumentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100020 /* DocumentPicker.swift */; };
+		AA000021 /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100021 /* Notifier.swift */; };
+		AA000022 /* FirmwareHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100022 /* FirmwareHistoryView.swift */; };
+		AA000023 /* CreditsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100023 /* CreditsView.swift */; };
+		AA000011 /* EditorTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100011 /* EditorTab.swift */; };
+		AA000012 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100012 /* SettingsView.swift */; };
+		AA000009 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100009 /* DiagnosticsView.swift */; };
+		AA000013 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100013 /* SettingsStore.swift */; };
+		AA000014 /* ProtocolConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100014 /* ProtocolConfig.swift */; };
+		AA000015 /* FirmwareStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100015 /* FirmwareStatus.swift */; };
+		AA000016 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = AA100016 /* Info.plist */; };
+		AA000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA100017 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AA100001 /* FlashbackRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashbackRemoteApp.swift; sourceTree = "<group>"; };
+		AA100002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		AA100003 /* CameraModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraModels.swift; sourceTree = "<group>"; };
+		AA100004 /* BLEController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEController.swift; sourceTree = "<group>"; };
+		AA100005 /* CameraViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewModel.swift; sourceTree = "<group>"; };
+		AA100006 /* CameraTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraTab.swift; sourceTree = "<group>"; };
+		AA100007 /* FilesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesViewModel.swift; sourceTree = "<group>"; };
+		AA100008 /* HTTPDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPDownloader.swift; sourceTree = "<group>"; };
+		AA100010 /* FilesTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesTab.swift; sourceTree = "<group>"; };
+		AA100020 /* DocumentPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPicker.swift; sourceTree = "<group>"; };
+		AA100021 /* Notifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifier.swift; sourceTree = "<group>"; };
+		AA100022 /* FirmwareHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirmwareHistoryView.swift; sourceTree = "<group>"; };
+		AA100023 /* CreditsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditsView.swift; sourceTree = "<group>"; };
+		AA100011 /* EditorTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTab.swift; sourceTree = "<group>"; };
+		AA100012 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AA100009 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
+		AA100013 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		AA100014 /* ProtocolConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolConfig.swift; sourceTree = "<group>"; };
+		AA100015 /* FirmwareStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirmwareStatus.swift; sourceTree = "<group>"; };
+		AA100016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA100017 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AA200001 /* FlashbackRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlashbackRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AA300001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AA400001 /* FlashbackRemote */ = {
+			isa = PBXGroup;
+			children = (
+				AA100001 /* FlashbackRemoteApp.swift */,
+				AA100002 /* ContentView.swift */,
+				AA410001 /* Camera */,
+				AA410002 /* Files */,
+				AA410003 /* Editor */,
+				AA410004 /* Settings */,
+				AA410005 /* Protocol */,
+				AA410006 /* Models */,
+				AA410007 /* Resources */,
+			);
+			path = FlashbackRemote;
+			sourceTree = "<group>";
+		};
+		AA410001 /* Camera */ = {
+			isa = PBXGroup;
+			children = (
+				AA100004 /* BLEController.swift */,
+				AA100005 /* CameraViewModel.swift */,
+				AA100006 /* CameraTab.swift */,
+			);
+			path = Camera;
+			sourceTree = "<group>";
+		};
+		AA410002 /* Files */ = {
+			isa = PBXGroup;
+			children = (
+				AA100007 /* FilesViewModel.swift */,
+				AA100008 /* HTTPDownloader.swift */,
+				AA100010 /* FilesTab.swift */,
+				AA100020 /* DocumentPicker.swift */,
+				AA100021 /* Notifier.swift */,
+			);
+			path = Files;
+			sourceTree = "<group>";
+		};
+		AA410003 /* Editor */ = {
+			isa = PBXGroup;
+			children = (
+				AA100011 /* EditorTab.swift */,
+			);
+			path = Editor;
+			sourceTree = "<group>";
+		};
+		AA410004 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				AA100012 /* SettingsView.swift */,
+				AA100022 /* FirmwareHistoryView.swift */,
+				AA100023 /* CreditsView.swift */,
+				AA100009 /* DiagnosticsView.swift */,
+				AA100013 /* SettingsStore.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		AA410005 /* Protocol */ = {
+			isa = PBXGroup;
+			children = (
+				AA100014 /* ProtocolConfig.swift */,
+				AA100015 /* FirmwareStatus.swift */,
+			);
+			path = Protocol;
+			sourceTree = "<group>";
+		};
+		AA410006 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				AA100003 /* CameraModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		AA410007 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				AA100016 /* Info.plist */,
+				AA100017 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		AA500001 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA200001 /* FlashbackRemote.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AA600001 /* root */ = {
+			isa = PBXGroup;
+			children = (
+				AA400001 /* FlashbackRemote */,
+				AA500001 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA700001 /* FlashbackRemote */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA800001 /* Build configuration list for PBXNativeTarget "FlashbackRemote" */;
+			buildPhases = (
+				AA300002 /* Sources */,
+				AA300001 /* Frameworks */,
+				AA300003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FlashbackRemote;
+			productName = FlashbackRemote;
+			productReference = AA200001 /* FlashbackRemote.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AA900001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					AA700001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = AA800002 /* Build configuration list for PBXProject "flashback-remote" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AA600001;
+			productRefGroup = AA500001 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA700001 /* FlashbackRemote */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AA300003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000017 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AA300002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000001 /* FlashbackRemoteApp.swift in Sources */,
+				AA000002 /* ContentView.swift in Sources */,
+				AA000003 /* CameraModels.swift in Sources */,
+				AA000004 /* BLEController.swift in Sources */,
+				AA000005 /* CameraViewModel.swift in Sources */,
+				AA000006 /* CameraTab.swift in Sources */,
+				AA000007 /* FilesViewModel.swift in Sources */,
+				AA000008 /* HTTPDownloader.swift in Sources */,
+				AA000010 /* FilesTab.swift in Sources */,
+				AA000020 /* DocumentPicker.swift in Sources */,
+				AA000021 /* Notifier.swift in Sources */,
+				AA000011 /* EditorTab.swift in Sources */,
+				AA000012 /* SettingsView.swift in Sources */,
+				AA000022 /* FirmwareHistoryView.swift in Sources */,
+				AA000023 /* CreditsView.swift in Sources */,
+				AA000009 /* DiagnosticsView.swift in Sources */,
+				AA000013 /* SettingsStore.swift in Sources */,
+				AA000014 /* ProtocolConfig.swift in Sources */,
+				AA000015 /* FirmwareStatus.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AA810001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_CYCLE = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AA810002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_CYCLE = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AA820001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FlashbackRemote/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.flashback.remote;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		AA820002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FlashbackRemote/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.flashback.remote;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA800001 /* Build configuration list for PBXNativeTarget "FlashbackRemote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA820001 /* Debug */,
+				AA820002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA800002 /* Build configuration list for PBXProject "flashback-remote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA810001 /* Debug */,
+				AA810002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = AA900001 /* Project object */;
+}

@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "firmwareVersions": {
+    "0.9.6": {
+      "status": "confirmed_working",
+      "testedDate": "2026-06-19",
+      "serviceUUID": "46246F52-C9F2-49A6-821B-D68F02298C97",
+      "characteristics": {
+        "auth":        "FB00",
+        "rollWrite":   ["FB20", "FB21", "FB22", "FB23"],
+        "wifiMode":    "FB01",
+        "wifiTrigger": "FB04",
+        "wifiStatus":  "FB02",
+        "isWound":     "FB10"
+      },
+      "rollPayload": {
+        "format": "json",
+        "maxLength": 100
+      },
+      "httpTerminate": "POST /terminate",
+      "notes": "Original confirmed working firmware (advertised as 0.9.6 in HTTP Server header). Roll limit successfully raised past 27 frames — frame 282 (position 43) confirmed."
+    }
+  }
+}

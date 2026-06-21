@@ -1,0 +1,28 @@
+{
+  "name": "Flashback Remote",
+  "identifier": "com.deknared.flashback-remote-source",
+  "sourceURL": "https://raw.githubusercontent.com/deknared/flashback-remote/main/sidestore-source.json",
+  "apps": [
+    {
+      "name": "Flashback Remote",
+      "bundleIdentifier": "com.flashback.remote",
+      "developerName": "deknared",
+      "subtitle": "Wireless control for the ONE35 V2",
+      "localizedDescription": "Remove the 27-photo roll limit on your Flashback ONE35 V2 and wirelessly transfer DNG files — all from one app, no USB needed.\n\n• Set any roll length up to 100 frames\n• One-tap camera WiFi connection\n• Transfer DNGs and JPEGs wirelessly\n• Embedded RAW editor (Flashback PWA)\n• No cloud account required",
+      "iconURL": "https://avatars.githubusercontent.com/u/deknared",
+      "tintColor": "1a1a1a",
+      "screenshots": [],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "date": "2026-06-21",
+          "localizedDescription": "First production release of Flashback Remote.\n\n• Remove the 27-photo roll limit (set any length up to 100)\n• One-tap camera WiFi and wireless DNG/JPEG transfer\n• USB import via the Files app\n• DNGs-only and always-delete options\n• Compatibility self-test for new firmware\n• Embedded Flashback RAW editor",
+          "downloadURL": "https://github.com/deknared/flashback-remote/releases/download/v1.0.0/FlashbackRemote.ipa",
+          "size": 274924,
+          "minOSVersion": "16.0"
+        }
+      ]
+    }
+  ],
+  "news": []
+}
