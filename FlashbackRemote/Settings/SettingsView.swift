@@ -42,6 +42,9 @@ struct SettingsView: View {
             }
             Toggle("DNGs only (skip + delete JPEGs)", isOn: $settings.dngOnly)
             Toggle("Always delete from camera", isOn: $settings.alwaysDeleteFromCamera)
+            Stepper(value: $settings.downloadConcurrency, in: 1...6) {
+                LabeledContent("Parallel downloads", value: "\(settings.downloadConcurrency)")
+            }
         } header: {
             Text("Downloads")
         } footer: {

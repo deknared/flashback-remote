@@ -18,7 +18,7 @@ enum DownloadState {
     case idle
     case listing
     case downloading(completed: Int, total: Int)
-    case done(count: Int)
+    case done(saved: Int, failed: Int)
     case failed(String)
 }
 
@@ -31,7 +31,19 @@ final class FilesViewModel: ObservableObject {
     @Published var deleteAfterDownload = false
     @Published var showDeleteConfirm = false
 
+    // True once a file list has loaded at least once this WiFi session — used to
+    // hide the "Load Files" button after the first successful load.
+    @Published var filesLoaded = false
+
+    // Live transfer stats for the downloading UI.
+    @Published var transferSpeedMBps: Double = 0
+    @Published var elapsedSeconds: Int = 0
+
+    // Files that failed in the last transfer, for the "Retry failed" action.
+    @Published var failedFiles: [CameraFile] = []
+
     private var downloader: HTTPDownloader?
+    private var lastSaveLocation: SaveLocation = .files
 
     func loadFiles(host: String = "192.168.4.1") {
         Task { await loadFilesAsync(host: host) }
@@ -43,29 +55,56 @@ final class FilesViewModel: ObservableObject {
         downloader = dl
         do {
             files = try await dl.listFiles()
+            filesLoaded = true
             downloadState = .idle
         } catch {
             downloadState = .failed(error.localizedDescription)
         }
     }
 
-    func downloadAll(saveLocation: SaveLocation, dngOnly: Bool = false, forceDelete: Bool = false, host: String = "192.168.4.1") {
+    func downloadAll(saveLocation: SaveLocation, dngOnly: Bool = false, forceDelete: Bool = false, concurrency: Int = 3, host: String = "192.168.4.1") {
         guard !files.isEmpty else { return }
-        let dl = HTTPDownloader(host: host)
-        downloader = dl
-        Notifier.requestAuthorization()
-
         let toDownload = dngOnly ? files.filter(\.isDNG) : files
         let toDeleteOnly = dngOnly ? files.filter { !$0.isDNG } : []
-        let deleteDownloaded = deleteAfterDownload || forceDelete
+        runDownload(list: toDownload,
+                    deleteOnly: toDeleteOnly,
+                    saveLocation: saveLocation,
+                    deleteDownloaded: deleteAfterDownload || forceDelete,
+                    concurrency: concurrency,
+                    host: host)
+    }
 
-        downloadState = .downloading(completed: 0, total: toDownload.count)
+    func retryFailed(concurrency: Int = 3, host: String = "192.168.4.1") {
+        let list = failedFiles
+        guard !list.isEmpty else { return }
+        runDownload(list: list,
+                    deleteOnly: [],
+                    saveLocation: lastSaveLocation,
+                    deleteDownloaded: false,
+                    concurrency: concurrency,
+                    host: host)
+    }
+
+    private func runDownload(list: [CameraFile],
+                             deleteOnly: [CameraFile],
+                             saveLocation: SaveLocation,
+                             deleteDownloaded: Bool,
+                             concurrency: Int,
+                             host: String) {
+        guard !list.isEmpty else { return }
+        let dl = HTTPDownloader(host: host)
+        downloader = dl
+        lastSaveLocation = saveLocation
+        Notifier.requestAuthorization()
+
+        downloadState = .downloading(completed: 0, total: list.count)
         fileProgress = [:]
+        failedFiles = []
+        transferSpeedMBps = 0
+        elapsedSeconds = 0
+        let start = Date()
 
-        // Ask iOS for extra time so a brief lock mid-transfer doesn't suspend us
-        // immediately. This is best-effort (a few minutes at most); for very large
-        // batches the screen should stay on. The completion notification fires
-        // regardless once the work finishes.
+        // Best-effort extra background time + keep the screen awake during transfer.
         var bgTask: UIBackgroundTaskIdentifier = .invalid
         bgTask = UIApplication.shared.beginBackgroundTask(withName: "FlashbackDownload") {
             if bgTask != .invalid {
@@ -73,65 +112,68 @@ final class FilesViewModel: ObservableObject {
                 bgTask = .invalid
             }
         }
-        // Keep the screen awake so the transfer keeps running if the user sets the
-        // phone down. (A manual lock still suspends us — the camera's no-internet
-        // WiFi tends to drop on lock, so true background transfer isn't reliable.)
         UIApplication.shared.isIdleTimerDisabled = true
+
+        let maxConcurrent = min(max(concurrency, 1), 6)
 
         Task {
             var completed = 0
-            var failed = 0
+            var completedBytes = 0
+            var failedList: [CameraFile] = []
             var deletedIDs: Set<String> = []
 
-            // Download several files at once (the camera's HTTP server handles a
-            // few parallel transfers, which is the main reason the official app
-            // feels faster than a strictly one-at-a-time download). Keep up to
-            // maxConcurrent in flight, refilling as each finishes.
-            let maxConcurrent = 3
             var next = 0
-            await withTaskGroup(of: Bool.self) { group in
+            await withTaskGroup(of: (CameraFile, Bool).self) { group in
                 func addTask() {
-                    guard next < toDownload.count else { return }
-                    let file = toDownload[next]
+                    guard next < list.count else { return }
+                    let file = list[next]
                     next += 1
                     group.addTask {
                         do {
                             try await dl.download(file: file, saveLocation: saveLocation) { progress in
                                 Task { @MainActor in self.fileProgress[file.id] = progress }
                             }
-                            return true
+                            return (file, true)
                         } catch {
-                            return false
+                            return (file, false)
                         }
                     }
                 }
-                for _ in 0..<min(maxConcurrent, toDownload.count) { addTask() }
-                for await ok in group {
-                    if ok { completed += 1 } else { failed += 1 }
-                    downloadState = .downloading(completed: completed, total: toDownload.count)
+                for _ in 0..<min(maxConcurrent, list.count) { addTask() }
+                for await (file, ok) in group {
+                    if ok {
+                        completed += 1
+                        completedBytes += file.sizeBytes
+                    } else {
+                        failedList.append(file)
+                    }
+                    let elapsed = max(Date().timeIntervalSince(start), 0.001)
+                    elapsedSeconds = Int(elapsed)
+                    transferSpeedMBps = Double(completedBytes) / 1_048_576 / elapsed
+                    downloadState = .downloading(completed: completed, total: list.count)
                     addTask()
                 }
             }
 
             // Always delete camera JPEGs when dngOnly is on
-            for file in toDeleteOnly {
+            for file in deleteOnly {
                 if (try? await dl.delete(file: file)) != nil { deletedIDs.insert(file.id) }
             }
 
-            if deleteDownloaded && failed == 0 {
-                for file in toDownload {
+            // Only auto-delete the downloaded files if every one succeeded.
+            if deleteDownloaded && failedList.isEmpty {
+                for file in list {
                     if (try? await dl.delete(file: file)) != nil { deletedIDs.insert(file.id) }
                 }
             }
 
-            // Prune deleted files from the list so the UI reflects what remains on
-            // the camera without another network round-trip.
             if !deletedIDs.isEmpty {
                 files.removeAll { deletedIDs.contains($0.id) }
             }
 
+            failedFiles = failedList
             await terminate(host: host)
-            downloadState = .done(count: completed)
+            downloadState = .done(saved: completed, failed: failedList.count)
             Notifier.notifyDownloadComplete(count: completed, deleted: deletedIDs.count)
 
             UIApplication.shared.isIdleTimerDisabled = false
@@ -169,13 +211,14 @@ final class FilesViewModel: ObservableObject {
                 }
                 downloadState = .downloading(completed: completed, total: urls.count)
             }
-            downloadState = .done(count: completed)
+            downloadState = .done(saved: completed, failed: 0)
             Notifier.notifyDownloadComplete(count: completed, deleted: deleted)
         }
     }
 
     func onWiFiReady(mock: Bool = false) {
         switchToFilesTab = true
+        filesLoaded = false   // show "Load Files" again for the new session
         #if DEBUG
         if mock {
             injectMockFiles()
@@ -229,6 +272,13 @@ enum ImportedFileSaver {
 // Shared resolver for the on-device save folder, used by both the WiFi downloader
 // and the USB importer so the destination logic lives in one place.
 enum FlashbackStorage {
+    // The app's local on-device folder (On My iPhone → Flashback Remote). The
+    // Library reads only this location.
+    static var localFolder: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Flashback Remote", isDirectory: true)
+    }
+
     static func destinationURL(filename: String, useICloud: Bool) throws -> URL {
         let baseURL: URL
         if useICloud, let icloud = FileManager.default.url(forUbiquityContainerIdentifier: nil) {

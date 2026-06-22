@@ -35,6 +35,14 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(shortcutName, forKey: "shortcutName") }
     }
 
+    // How many files to download from the camera at once (1–6).
+    @Published var downloadConcurrency: Int {
+        didSet {
+            downloadConcurrency = min(max(downloadConcurrency, 1), 6)
+            UserDefaults.standard.set(downloadConcurrency, forKey: "downloadConcurrency")
+        }
+    }
+
     // When enabled: the Editor tab loads the staging build of the web editor.
     @Published var useStagingEditor: Bool {
         didSet { UserDefaults.standard.set(useStagingEditor, forKey: "useStagingEditor") }
@@ -70,6 +78,7 @@ final class SettingsStore: ObservableObject {
         dngOnly = UserDefaults.standard.object(forKey: "dngOnly") as? Bool ?? false
         alwaysDeleteFromCamera = UserDefaults.standard.object(forKey: "alwaysDeleteFromCamera") as? Bool ?? false
         shortcutName = UserDefaults.standard.string(forKey: "shortcutName") ?? ""
+        downloadConcurrency = (UserDefaults.standard.object(forKey: "downloadConcurrency") as? Int).map { min(max($0, 1), 6) } ?? 3
         useStagingEditor = UserDefaults.standard.object(forKey: "useStagingEditor") as? Bool ?? false
 
         overrideServiceUUID = UserDefaults.standard.string(forKey: "ov_serviceUUID") ?? ""

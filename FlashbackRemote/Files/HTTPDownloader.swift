@@ -26,6 +26,7 @@ final class HTTPDownloader {
         config.timeoutIntervalForRequest = 60
         config.timeoutIntervalForResource = 300
         config.waitsForConnectivity = true
+        config.httpMaximumConnectionsPerHost = 6  // allow parallel file downloads
         session = URLSession(configuration: config,
                              delegate: progressDelegate,
                              delegateQueue: nil)

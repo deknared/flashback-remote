@@ -137,6 +137,7 @@ struct CameraTab: View {
             } label: {
                 Label(buttonTitle, systemImage: "dot.radiowaves.left.and.right")
                     .frame(maxWidth: .infinity)
+                    .foregroundStyle(.white)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -334,6 +335,7 @@ struct CameraTab: View {
                 } label: {
                     Label("Set Roll + Start WiFi", systemImage: "antenna.radiowaves.left.and.right")
                         .frame(maxWidth: .infinity)
+                        .foregroundStyle(.white)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)

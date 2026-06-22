@@ -18,8 +18,8 @@ struct FilesTab: View {
                     loadingView("Loading file list…")
                 case .downloading(let completed, let total):
                     downloadingView(completed: completed, total: total)
-                case .done(let count):
-                    doneView(count: count)
+                case .done(let saved, let failed):
+                    doneView(saved: saved, failed: failed)
                 case .failed(let msg):
                     errorView(msg)
                 }
@@ -103,11 +103,15 @@ struct FilesTab: View {
         let jpgs = visibleFiles.filter { !$0.isDNG }
 
         return List {
-            Section {
-                wifiJoinBanner(ip: ip)
+            // The join banner (credentials + Load Files) is only useful before the
+            // first successful load — hide it once files are listed.
+            if !vm.filesLoaded {
+                Section {
+                    wifiJoinBanner(ip: ip)
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
 
             if visibleFiles.isEmpty {
                 Section {
@@ -167,7 +171,8 @@ struct FilesTab: View {
                         } else {
                             vm.downloadAll(saveLocation: settings.saveLocation,
                                            dngOnly: settings.dngOnly,
-                                           forceDelete: settings.alwaysDeleteFromCamera)
+                                           forceDelete: settings.alwaysDeleteFromCamera,
+                                           concurrency: settings.downloadConcurrency)
                         }
                     } label: {
                         Label(
@@ -177,6 +182,7 @@ struct FilesTab: View {
                             systemImage: "arrow.down.circle"
                         )
                         .frame(maxWidth: .infinity)
+                        .foregroundStyle(.white)
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -191,7 +197,8 @@ struct FilesTab: View {
             Button("Delete after download", role: .destructive) {
                 vm.downloadAll(saveLocation: settings.saveLocation,
                                dngOnly: settings.dngOnly,
-                               forceDelete: settings.alwaysDeleteFromCamera)
+                               forceDelete: settings.alwaysDeleteFromCamera,
+                               concurrency: settings.downloadConcurrency)
             }
             Button("Cancel", role: .cancel) { vm.deleteAfterDownload = false }
         } message: {
@@ -248,6 +255,7 @@ struct FilesTab: View {
             } label: {
                 Label("Load Files", systemImage: "arrow.down.circle")
                     .frame(maxWidth: .infinity)
+                    .foregroundStyle(.white)
             }
             .buttonStyle(.borderedProminent)
         }
@@ -295,23 +303,44 @@ struct FilesTab: View {
                 .padding(.horizontal)
             Text("\(completed) of \(total) files")
                 .foregroundStyle(.secondary)
+            HStack(spacing: 16) {
+                Label(String(format: "%.1f MB/s", vm.transferSpeedMBps), systemImage: "speedometer")
+                Label(elapsedString(vm.elapsedSeconds), systemImage: "clock")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         .padding()
     }
 
-    private func doneView(count: Int) -> some View {
+    private func elapsedString(_ seconds: Int) -> String {
+        let m = seconds / 60, s = seconds % 60
+        return m > 0 ? "\(m)m \(s)s" : "\(s)s"
+    }
+
+    private func doneView(saved: Int, failed: Int) -> some View {
         VStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
+            Image(systemName: failed == 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .font(.system(size: 48))
-                .foregroundStyle(.green)
-            Text("\(count) files saved")
+                .foregroundStyle(failed == 0 ? .green : .orange)
+            Text("\(saved) saved\(failed > 0 ? " · \(failed) failed" : "")")
                 .font(.title2)
             Text(savedLocationHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            if failed > 0 {
+                Button {
+                    vm.retryFailed(concurrency: settings.downloadConcurrency)
+                } label: {
+                    Label("Retry \(failed) failed", systemImage: "arrow.clockwise")
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.borderedProminent)
+            }
             Button("Done") { vm.downloadState = .idle }
         }
+        .padding()
     }
 
     private var savedLocationHint: String {
