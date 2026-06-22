@@ -18,7 +18,7 @@
           "date": "2026-06-22",
           "localizedDescription": "UI refresh, a Library, and faster transfers.\n\n• New Library tab — preview your DNGs/JPEGs on-device and keep or delete them\n• Floating glass-style tab bar; Settings is now its own tab\n• Parallel downloads are tunable (1–6) with a live MB/s + elapsed readout\n• Done screen shows saved/failed with a Retry option\n• Pull-to-refresh in the Editor tab\n• New app icon and button polish",
           "downloadURL": "https://github.com/deknared/flashback-remote/releases/download/v1.1.0/FlashbackRemote.ipa",
-          "size": 345948,
+          "size": 346851,
           "minOSVersion": "16.0"
         },
         {
