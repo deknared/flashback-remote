@@ -5,20 +5,20 @@ struct ContentView: View {
     @State private var selectedTab: Tab = .camera
 
     enum Tab {
-        case camera, files, editor
+        case camera, files, editor, settings
     }
 
     var body: some View {
         TabView(selection: $selectedTab) {
             CameraTab()
                 .tabItem {
-                    Label("Camera", systemImage: "camera")
+                    Label("Camera", systemImage: "camera.fill")
                 }
                 .tag(Tab.camera)
 
             FilesTab()
                 .tabItem {
-                    Label("Files", systemImage: "folder")
+                    Label("Files", systemImage: "folder.fill")
                 }
                 .tag(Tab.files)
 
@@ -27,6 +27,14 @@ struct ContentView: View {
                     Label("Editor", systemImage: "wand.and.stars")
                 }
                 .tag(Tab.editor)
+
+            NavigationStack {
+                SettingsView()
+            }
+            .tabItem {
+                Label("Settings", systemImage: "gearshape.fill")
+            }
+            .tag(Tab.settings)
         }
         .onReceive(filesViewModel.$switchToFilesTab) { should in
             if should {

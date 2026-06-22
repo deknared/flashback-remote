@@ -17,7 +17,6 @@ struct SettingsView: View {
             aboutSection
         }
         .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var editorSection: some View {
@@ -27,8 +26,8 @@ struct SettingsView: View {
             Text("Editor")
         } footer: {
             Text(settings.useStagingEditor
-                 ? "Editor tab loads the staging build:\nflashback-raw-editor-web-staging.deknared.workers.dev"
-                 : "Editor tab loads the production build. Turn on to test the beta editor.")
+                 ? "Editor tab loads the beta build."
+                 : "Editor tab loads the production build. Turn on to try the beta editor.")
         }
     }
 
@@ -107,7 +106,7 @@ struct SettingsView: View {
             NavigationLink {
                 CreditsView()
             } label: {
-                Label("Credits", systemImage: "heart")
+                Text("Credits")
             }
             Link("Source on GitHub",
                  destination: URL(string: "https://github.com/deknared/flashback-remote")!)

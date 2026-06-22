@@ -33,14 +33,7 @@ struct CameraTab: View {
                     settings.markFirmwareLocallyConfirmed(v)
                 }
             }
-            .navigationTitle("Flashback Remote")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink(destination: SettingsView()) {
-                        Image(systemName: "gear")
-                    }
-                }
-            }
+            .navigationTitle("Camera")
         }
     }
 
@@ -84,27 +77,24 @@ struct CameraTab: View {
             }
         case .scanTimeout:
             Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("No camera found", systemImage: "antenna.radiowaves.left.and.right.slash")
-                        .foregroundStyle(.secondary)
-                    Text("Wind the camera and try again")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button("Scan Again") { ble.startScan() }
-                    #if DEBUG
-                    mockButton
-                    #endif
-                }
+                connectHero(
+                    icon: "antenna.radiowaves.left.and.right.slash",
+                    title: "No camera found",
+                    subtitle: "Wind the camera to wake its Bluetooth, then scan again.",
+                    buttonTitle: "Scan Again"
+                )
             }
+            .listRowBackground(Color.clear)
         case .idle:
             Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Button("Scan for Camera") { ble.startScan() }
-                    #if DEBUG
-                    mockButton
-                    #endif
-                }
+                connectHero(
+                    icon: "camera.aperture",
+                    title: "No camera connected",
+                    subtitle: "Wind your ONE35 V2 to wake it, then scan to connect over Bluetooth.",
+                    buttonTitle: "Scan for Camera"
+                )
             }
+            .listRowBackground(Color.clear)
         case .connecting, .discoveringServices, .discoveringCharacteristics:
             Section {
                 HStack {
@@ -118,9 +108,45 @@ struct CameraTab: View {
             EmptyView()
         case .failed:
             Section {
-                Button("Scan Again") { ble.startScan() }
+                connectHero(
+                    icon: "exclamationmark.arrow.triangle.2.circlepath",
+                    title: "Connection failed",
+                    subtitle: "Something interrupted the connection. Wind the camera and try again.",
+                    buttonTitle: "Scan Again"
+                )
             }
+            .listRowBackground(Color.clear)
         }
+    }
+
+    private func connectHero(icon: String, title: String, subtitle: String, buttonTitle: String) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 54))
+                .foregroundStyle(.tint)
+                .symbolRenderingMode(.hierarchical)
+            Text(title)
+                .font(.title3.bold())
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            Button {
+                ble.startScan()
+            } label: {
+                Label(buttonTitle, systemImage: "dot.radiowaves.left.and.right")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.top, 4)
+            #if DEBUG
+            mockButton
+            #endif
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
     }
 
     private func effectiveStatus(_ version: String) -> FirmwareStatus {
@@ -304,34 +330,39 @@ struct CameraTab: View {
                 let isWound = ble.discoveredCamera?.isWound ?? false
 
                 Button {
-                    vm.setRollOnly(using: ble)
-                } label: {
-                    Label("Set Roll Length", systemImage: "film")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!isWound)
-
-                Button {
-                    vm.startWiFiOnly(using: ble)
-                } label: {
-                    Label("Start WiFi Transfer", systemImage: "wifi")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!isWound)
-
-                Button {
                     vm.configure(using: ble)
                 } label: {
                     Label("Set Roll + Start WiFi", systemImage: "antenna.radiowaves.left.and.right")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .disabled(!isWound)
 
+                HStack(spacing: 10) {
+                    Button {
+                        vm.setRollOnly(using: ble)
+                    } label: {
+                        Label("Set Roll", systemImage: "film")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(!isWound)
+
+                    Button {
+                        vm.startWiFiOnly(using: ble)
+                    } label: {
+                        Label("Start WiFi", systemImage: "wifi")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(!isWound)
+                }
+
                 if !isWound {
-                    Text("Wind the camera to enable")
+                    Label("Wind the camera to enable these actions", systemImage: "info.circle")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

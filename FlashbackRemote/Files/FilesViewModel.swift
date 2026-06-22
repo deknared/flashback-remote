@@ -82,18 +82,35 @@ final class FilesViewModel: ObservableObject {
             var completed = 0
             var failed = 0
             var deletedIDs: Set<String> = []
-            for file in toDownload {
-                do {
-                    try await dl.download(file: file, saveLocation: saveLocation) { progress in
-                        Task { @MainActor in
-                            self.fileProgress[file.id] = progress
+
+            // Download several files at once (the camera's HTTP server handles a
+            // few parallel transfers, which is the main reason the official app
+            // feels faster than a strictly one-at-a-time download). Keep up to
+            // maxConcurrent in flight, refilling as each finishes.
+            let maxConcurrent = 3
+            var next = 0
+            await withTaskGroup(of: Bool.self) { group in
+                func addTask() {
+                    guard next < toDownload.count else { return }
+                    let file = toDownload[next]
+                    next += 1
+                    group.addTask {
+                        do {
+                            try await dl.download(file: file, saveLocation: saveLocation) { progress in
+                                Task { @MainActor in self.fileProgress[file.id] = progress }
+                            }
+                            return true
+                        } catch {
+                            return false
                         }
                     }
-                    completed += 1
-                } catch {
-                    failed += 1
                 }
-                downloadState = .downloading(completed: completed, total: toDownload.count)
+                for _ in 0..<min(maxConcurrent, toDownload.count) { addTask() }
+                for await ok in group {
+                    if ok { completed += 1 } else { failed += 1 }
+                    downloadState = .downloading(completed: completed, total: toDownload.count)
+                    addTask()
+                }
             }
 
             // Always delete camera JPEGs when dngOnly is on
