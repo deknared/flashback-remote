@@ -35,12 +35,11 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(shortcutName, forKey: "shortcutName") }
     }
 
-    // How many files to download from the camera at once (1–6).
+    // How many files to download from the camera at once. Bounds are enforced by
+    // the Stepper (1...6) and clamped again where it's used — never reassign this
+    // inside its own didSet (that re-publishes mid view-update and crashes).
     @Published var downloadConcurrency: Int {
-        didSet {
-            downloadConcurrency = min(max(downloadConcurrency, 1), 6)
-            UserDefaults.standard.set(downloadConcurrency, forKey: "downloadConcurrency")
-        }
+        didSet { UserDefaults.standard.set(downloadConcurrency, forKey: "downloadConcurrency") }
     }
 
     // When enabled: the Editor tab loads the staging build of the web editor.

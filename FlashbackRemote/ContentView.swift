@@ -37,9 +37,10 @@ struct ContentView: View {
                 .tag(Tab.settings)
                 .toolbar(.hidden, for: .tabBar)
             }
-            // Reserve room at the bottom of each tab's content for the floating bar.
+            // Reserve room at the bottom of each tab's content for the floating bar
+            // so the last row (e.g. "Source on GitHub") isn't covered.
             .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 54)
+                Color.clear.frame(height: 72)
             }
 
             GlassTabBar(selection: $selectedTab, items: tabs)

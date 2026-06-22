@@ -27,6 +27,7 @@ struct LibraryTab: View {
                 }
             }
             .navigationTitle("Library")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { vm.load() } label: { Image(systemName: "arrow.clockwise") }
@@ -50,11 +51,16 @@ struct LibraryTab: View {
                 .symbolRenderingMode(.hierarchical)
             Text("No photos yet")
                 .font(.title3.bold())
-            Text("DNGs and JPEGs you transfer to this iPhone show up here, so you can preview and prune them.")
+            Text("This reads files saved to **On My iPhone → Flashback Remote**. Transfer with **Save Location = Files App**, then they appear here to preview and prune.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+            Button { vm.load() } label: {
+                Label("Refresh", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.bordered)
+            .padding(.top, 4)
         }
     }
 }
