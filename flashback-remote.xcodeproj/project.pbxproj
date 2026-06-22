@@ -77,8 +77,10 @@
 			children = (
 				AA100001 /* FlashbackRemoteApp.swift */,
 				AA100002 /* ContentView.swift */,
+				AA100024 /* GlassTabBar.swift */,
 				AA410001 /* Camera */,
 				AA410002 /* Files */,
+				AA410008 /* Library */,
 				AA410003 /* Editor */,
 				AA410004 /* Settings */,
 				AA410005 /* Protocol */,
@@ -86,6 +88,15 @@
 				AA410007 /* Resources */,
 			);
 			path = FlashbackRemote;
+			sourceTree = "<group>";
+		};
+		AA410008 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				AA100025 /* LibraryViewModel.swift */,
+				AA100026 /* LibraryTab.swift */,
+			);
+			path = Library;
 			sourceTree = "<group>";
 		};
 		AA410001 /* Camera */ = {
@@ -124,9 +135,6 @@
 				AA100012 /* SettingsView.swift */,
 				AA100022 /* FirmwareHistoryView.swift */,
 				AA100023 /* CreditsView.swift */,
-				AA100024 /* GlassTabBar.swift */,
-				AA100025 /* LibraryViewModel.swift */,
-				AA100026 /* LibraryTab.swift */,
 				AA100009 /* DiagnosticsView.swift */,
 				AA100013 /* SettingsStore.swift */,
 			);
