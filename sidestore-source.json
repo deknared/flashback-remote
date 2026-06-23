@@ -14,6 +14,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.1.2",
+          "date": "2026-06-23",
+          "localizedDescription": "Library decoding fixed.\n\n• ONE35 DNGs now render correctly with a native Bayer decoder (ported from the Flashback editor) — no more colour banding\n• Thumbnails are cached so the Library reopens instantly\n• Editor: effects/export buttons no longer hidden behind the tab bar\n• Fixed remaining content hidden under the floating tab bar",
+          "downloadURL": "https://github.com/deknared/flashback-remote/releases/download/v1.1.2/FlashbackRemote.ipa",
+          "size": 366110,
+          "minOSVersion": "16.0"
+        },
+        {
           "version": "1.1.1",
           "date": "2026-06-22",
           "localizedDescription": "Library and Editor fixes.\n\n• Library thumbnails decode correctly now (including raw DNGs) and the grid layout is fixed\n• Select photos (long-press) to Share or Delete in bulk; Select All / Deselect All\n• Editor is full-screen again — no top bar, and its controls clear the tab bar\n• Download concurrency defaults to 1 (the camera caps total speed, so parallel doesn't help)\n• Settings: the GitHub link is no longer hidden behind the tab bar",
