@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var filesViewModel: FilesViewModel
     @State private var selectedTab: Tab = .camera
+    @State private var hideTabBar = false
 
     enum Tab {
         case camera, files, library, editor, settings
@@ -25,7 +26,7 @@ struct ContentView: View {
                 FilesTab()
                     .tag(Tab.files)
                     .toolbar(.hidden, for: .tabBar)
-                LibraryTab()
+                LibraryTab(hideTabBar: $hideTabBar)
                     .tag(Tab.library)
                     .toolbar(.hidden, for: .tabBar)
                 EditorTab()
@@ -38,9 +39,12 @@ struct ContentView: View {
                 .toolbar(.hidden, for: .tabBar)
             }
 
-            GlassTabBar(selection: $selectedTab, items: tabs)
-                .padding(.bottom, 2)
-                .ignoresSafeArea(.keyboard, edges: .bottom)
+            if !hideTabBar {
+                GlassTabBar(selection: $selectedTab, items: tabs)
+                    .padding(.bottom, 2)
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .onReceive(filesViewModel.$switchToFilesTab) { should in
             if should {

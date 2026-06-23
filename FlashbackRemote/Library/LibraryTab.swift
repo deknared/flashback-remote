@@ -3,8 +3,9 @@ import UIKit
 
 struct LibraryTab: View {
     @StateObject private var vm = LibraryViewModel()
-    @State private var selected: LibraryItem?
+    @Binding var hideTabBar: Bool
 
+    @State private var viewerItem: LibraryItem?
     @State private var isSelecting = false
     @State private var selection: Set<String> = []
     @State private var showDeleteConfirm = false
@@ -22,15 +23,18 @@ struct LibraryTab: View {
                     grid
                 }
             }
-            .navigationTitle(isSelecting ? "\(selection.count) selected" : "Library")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Library")
             .toolbar { toolbarContent }
+            .overlay(alignment: .bottom) {
+                if isSelecting { selectionActionBar }
+            }
             .onAppear { vm.load() }
-            .fullScreenCover(item: $selected) { item in
-                LibraryDetailView(item: item) {
-                    vm.delete(item)
-                    selected = nil
-                }
+            .onChange(of: isSelecting) { selecting in
+                withAnimation(.easeInOut(duration: 0.2)) { hideTabBar = selecting }
+            }
+            .onDisappear { hideTabBar = false }
+            .fullScreenCover(item: $viewerItem) { item in
+                PhotoViewer(vm: vm, startID: item.id)
             }
             .confirmationDialog("Delete \(selection.count) photo\(selection.count == 1 ? "" : "s")?",
                                 isPresented: $showDeleteConfirm, titleVisibility: .visible) {
@@ -57,7 +61,7 @@ struct LibraryTab: View {
                                      isSelecting: isSelecting,
                                      isSelected: selection.contains(item.id))
                         .onTapGesture {
-                            if isSelecting { toggle(item) } else { selected = item }
+                            if isSelecting { toggle(item) } else { viewerItem = item }
                         }
                         .onLongPressGesture {
                             if !isSelecting {
@@ -68,7 +72,7 @@ struct LibraryTab: View {
                 }
             }
             .padding(4)
-            .padding(.bottom, 70)   // clear the floating tab bar
+            .padding(.bottom, 80)   // clear the floating tab/selection bar
         }
         .refreshable { vm.load() }
     }
@@ -77,31 +81,50 @@ struct LibraryTab: View {
     private var toolbarContent: some ToolbarContent {
         if isSelecting {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button("Done") { exitSelection() }
+                Button("Cancel") { exitSelection() }
             }
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                Menu {
-                    Button("Select All") { selection = Set(vm.items.map(\.id)) }
-                    Button("Deselect All") { selection = [] }
-                } label: {
-                    Image(systemName: "checklist")
-                }
-                Button {
-                    shareURLs = vm.fileURLs(for: selection)
-                    showShare = true
-                } label: { Image(systemName: "square.and.arrow.up") }
-                    .disabled(selection.isEmpty)
-                Button(role: .destructive) {
-                    showDeleteConfirm = true
-                } label: { Image(systemName: "trash") }
-                    .disabled(selection.isEmpty)
-            }
-        } else if !vm.items.isEmpty {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Select") { isSelecting = true }
+                Button(allSelected ? "Deselect All" : "Select All") {
+                    if allSelected { selection = [] }
+                    else { selection = Set(vm.items.map(\.id)) }
+                }
             }
         }
     }
+
+    private var selectionActionBar: some View {
+        HStack {
+            Button {
+                shareURLs = vm.fileURLs(for: selection)
+                showShare = true
+            } label: {
+                Image(systemName: "square.and.arrow.up").font(.title3)
+            }
+            .disabled(selection.isEmpty)
+
+            Spacer()
+            Text(selection.isEmpty ? "Select Photos" : "\(selection.count) Selected")
+                .font(.subheadline.weight(.medium))
+            Spacer()
+
+            Button(role: .destructive) {
+                showDeleteConfirm = true
+            } label: {
+                Image(systemName: "trash").font(.title3)
+            }
+            .disabled(selection.isEmpty)
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 14)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
+        .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 2)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private var allSelected: Bool { !vm.items.isEmpty && selection.count == vm.items.count }
 
     private func toggle(_ item: LibraryItem) {
         if selection.contains(item.id) { selection.remove(item.id) }
@@ -135,7 +158,7 @@ struct LibraryTab: View {
     }
 }
 
-// MARK: - Thumbnail cell
+// MARK: - Grid thumbnail
 
 struct LibraryThumbnail: View {
     let item: LibraryItem
@@ -198,79 +221,156 @@ struct LibraryThumbnail: View {
     }
 }
 
-// MARK: - Full-screen detail
+// MARK: - Paged full-screen viewer (Photos-style)
 
-struct LibraryDetailView: View {
-    let item: LibraryItem
-    let onDelete: () -> Void
+struct PhotoViewer: View {
+    @ObservedObject var vm: LibraryViewModel
+    let startID: String
 
     @Environment(\.dismiss) private var dismiss
-    @State private var image: UIImage?
-    @State private var loading = true
+    @State private var index = 0
     @State private var showDeleteConfirm = false
     @State private var showShare = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.black.ignoresSafeArea()
-                if let image {
-                    ZoomableImage(image: image)
-                } else if loading {
-                    ProgressView().tint(.white)
-                } else {
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle).foregroundStyle(.secondary)
-                        Text("Couldn't decode this file").foregroundStyle(.secondary)
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if vm.items.isEmpty {
+                Color.clear.onAppear { dismiss() }
+            } else {
+                TabView(selection: $index) {
+                    ForEach(Array(vm.items.enumerated()), id: \.element.id) { i, item in
+                        PageImageView(item: item).tag(i)
                     }
                 }
-            }
-            .navigationTitle(item.displayName)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Done") { dismiss() }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { showShare = true } label: { Image(systemName: "square.and.arrow.up") }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(role: .destructive) { showDeleteConfirm = true } label: {
-                        Image(systemName: "trash")
-                    }
-                }
-                ToolbarItem(placement: .bottomBar) {
-                    Text(item.sizeMB + (item.isRawOnly ? " · RAW only" : ""))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    topBar
+                    Spacer()
+                    filmstrip
                 }
             }
-            .confirmationDialog("Delete this photo?",
-                                isPresented: $showDeleteConfirm,
-                                titleVisibility: .visible) {
-                Button("Delete", role: .destructive) { onDelete() }
-                Button("Keep", role: .cancel) {}
-            } message: {
-                Text(item.dngURL != nil && item.jpegURL != nil
-                     ? "Removes both the DNG and its JPEG from this iPhone."
-                     : "Removes this file from this iPhone.")
+        }
+        .onAppear { index = vm.items.firstIndex { $0.id == startID } ?? 0 }
+        .confirmationDialog("Delete this photo?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { deleteCurrent() }
+            Button("Keep", role: .cancel) {}
+        } message: {
+            Text("Removes the DNG and any matching JPEG from this iPhone.")
+        }
+        .sheet(isPresented: $showShare) {
+            if vm.items.indices.contains(index) {
+                ShareSheet(items: [vm.items[index].dngURL, vm.items[index].jpegURL].compactMap { $0 })
             }
-            .sheet(isPresented: $showShare) {
-                ShareSheet(items: [item.dngURL, item.jpegURL].compactMap { $0 })
-            }
-            .task { await loadFull() }
         }
     }
 
-    private func loadFull() async {
-        guard let url = item.primaryURL else { loading = false; return }
-        let img = await Task.detached(priority: .userInitiated) {
-            ImageDecoder.fullImage(url: url)
-        }.value
-        image = img
-        loading = false
+    private var current: LibraryItem? { vm.items.indices.contains(index) ? vm.items[index] : nil }
+
+    private var topBar: some View {
+        HStack {
+            Button("Done") { dismiss() }
+            Spacer()
+            Button { showShare = true } label: { Image(systemName: "square.and.arrow.up") }
+            Button(role: .destructive) { showDeleteConfirm = true } label: { Image(systemName: "trash") }
+                .padding(.leading, 16)
+        }
+        .font(.body.weight(.medium))
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+    }
+
+    private var filmstrip: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(Array(vm.items.enumerated()), id: \.element.id) { i, item in
+                        FilmstripThumb(item: item, isCurrent: i == index)
+                            .id(i)
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) { index = i }
+                            }
+                    }
+                }
+                .padding(.horizontal, 12)
+            }
+            .frame(height: 64)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial)
+            .onChange(of: index) { i in
+                withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(i, anchor: .center) }
+            }
+            .onAppear { proxy.scrollTo(index, anchor: .center) }
+        }
+    }
+
+    private func deleteCurrent() {
+        guard let item = current else { return }
+        let wasLast = index >= vm.items.count - 1
+        vm.delete(item)
+        if vm.items.isEmpty { dismiss(); return }
+        if wasLast { index = vm.items.count - 1 }
+    }
+}
+
+struct PageImageView: View {
+    let item: LibraryItem
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                ZoomableImage(image: image)
+            } else {
+                ProgressView().tint(.white)
+            }
+        }
+        .task(id: item.id) {
+            if image == nil, let thumb = ThumbnailCache.shared.image(for: item.id) {
+                image = thumb   // instant placeholder
+            }
+            guard let url = item.primaryURL else { return }
+            let full = await Task.detached(priority: .userInitiated) {
+                ImageDecoder.fullImage(url: url)
+            }.value
+            if let full { image = full }
+        }
+    }
+}
+
+struct FilmstripThumb: View {
+    let item: LibraryItem
+    let isCurrent: Bool
+    @State private var image: UIImage?
+
+    var body: some View {
+        Rectangle()
+            .fill(Color(.secondarySystemBackground))
+            .overlay {
+                if let image { Image(uiImage: image).resizable().scaledToFill() }
+            }
+            .frame(width: 48, height: 48)
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+            .overlay {
+                RoundedRectangle(cornerRadius: 5)
+                    .strokeBorder(Color.white, lineWidth: isCurrent ? 2 : 0)
+            }
+            .opacity(isCurrent ? 1 : 0.6)
+            .task(id: item.id) {
+                if let cached = ThumbnailCache.shared.image(for: item.id) { image = cached; return }
+                guard let url = item.thumbnailSourceURL else { return }
+                let img = await Task.detached(priority: .utility) {
+                    ImageDecoder.thumbnail(url: url, maxPixel: 200)
+                }.value
+                if let img { ThumbnailCache.shared.set(img, for: item.id); image = img }
+            }
     }
 }
 
