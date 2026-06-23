@@ -1,8 +1,15 @@
 import SwiftUI
+import UIKit
 
 struct LibraryTab: View {
     @StateObject private var vm = LibraryViewModel()
     @State private var selected: LibraryItem?
+
+    @State private var isSelecting = false
+    @State private var selection: Set<String> = []
+    @State private var showDeleteConfirm = false
+    @State private var shareURLs: [URL] = []
+    @State private var showShare = false
 
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 4)]
 
@@ -12,27 +19,12 @@ struct LibraryTab: View {
                 if vm.items.isEmpty {
                     emptyView
                 } else {
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 4) {
-                            ForEach(vm.items) { item in
-                                Button { selected = item } label: {
-                                    LibraryThumbnail(item: item)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(4)
-                    }
-                    .refreshable { vm.load() }
+                    grid
                 }
             }
-            .navigationTitle("Library")
+            .navigationTitle(isSelecting ? "\(selection.count) selected" : "Library")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { vm.load() } label: { Image(systemName: "arrow.clockwise") }
-                }
-            }
+            .toolbar { toolbarContent }
             .onAppear { vm.load() }
             .fullScreenCover(item: $selected) { item in
                 LibraryDetailView(item: item) {
@@ -40,7 +32,84 @@ struct LibraryTab: View {
                     selected = nil
                 }
             }
+            .confirmationDialog("Delete \(selection.count) photo\(selection.count == 1 ? "" : "s")?",
+                                isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) {
+                    vm.delete(ids: selection)
+                    exitSelection()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Removes the selected DNGs and their matching JPEGs from this iPhone.")
+            }
+            .sheet(isPresented: $showShare) {
+                ShareSheet(items: shareURLs)
+            }
         }
+    }
+
+    private var grid: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(vm.items) { item in
+                    LibraryThumbnail(item: item,
+                                     showBadge: vm.showsRawBadges,
+                                     isSelecting: isSelecting,
+                                     isSelected: selection.contains(item.id))
+                        .onTapGesture {
+                            if isSelecting { toggle(item) } else { selected = item }
+                        }
+                        .onLongPressGesture {
+                            if !isSelecting {
+                                isSelecting = true
+                                selection = [item.id]
+                            }
+                        }
+                }
+            }
+            .padding(4)
+        }
+        .refreshable { vm.load() }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        if isSelecting {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Done") { exitSelection() }
+            }
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Menu {
+                    Button("Select All") { selection = Set(vm.items.map(\.id)) }
+                    Button("Deselect All") { selection = [] }
+                } label: {
+                    Image(systemName: "checklist")
+                }
+                Button {
+                    shareURLs = vm.fileURLs(for: selection)
+                    showShare = true
+                } label: { Image(systemName: "square.and.arrow.up") }
+                    .disabled(selection.isEmpty)
+                Button(role: .destructive) {
+                    showDeleteConfirm = true
+                } label: { Image(systemName: "trash") }
+                    .disabled(selection.isEmpty)
+            }
+        } else if !vm.items.isEmpty {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Select") { isSelecting = true }
+            }
+        }
+    }
+
+    private func toggle(_ item: LibraryItem) {
+        if selection.contains(item.id) { selection.remove(item.id) }
+        else { selection.insert(item.id) }
+    }
+
+    private func exitSelection() {
+        isSelecting = false
+        selection = []
     }
 
     private var emptyView: some View {
@@ -69,36 +138,47 @@ struct LibraryTab: View {
 
 struct LibraryThumbnail: View {
     let item: LibraryItem
+    let showBadge: Bool
+    let isSelecting: Bool
+    let isSelected: Bool
     @State private var image: UIImage?
 
     var body: some View {
-        ZStack {
-            Color(.secondarySystemBackground)
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                ProgressView()
-            }
-            if item.isRawOnly {
-                VStack {
-                    HStack {
-                        Spacer()
-                        Text("RAW")
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .padding(4)
-                    }
-                    Spacer()
+        Rectangle()
+            .fill(Color(.secondarySystemBackground))
+            .overlay {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFill()
+                } else {
+                    ProgressView()
                 }
             }
-        }
-        .aspectRatio(1, contentMode: .fill)
-        .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .task(id: item.id) { await loadThumb() }
+            .overlay(alignment: .topTrailing) {
+                if showBadge && item.dngURL != nil {
+                    Text("RAW")
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(4)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if isSelecting {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.white))
+                        .background(Circle().fill(.black.opacity(0.25)))
+                        .padding(5)
+                }
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                if isSelecting && isSelected {
+                    RoundedRectangle(cornerRadius: 6).strokeBorder(Color.accentColor, lineWidth: 3)
+                }
+            }
+            .task(id: item.id) { await loadThumb() }
     }
 
     private func loadThumb() async {
@@ -127,6 +207,7 @@ struct LibraryDetailView: View {
     @State private var image: UIImage?
     @State private var loading = true
     @State private var showDeleteConfirm = false
+    @State private var showShare = false
 
     var body: some View {
         NavigationStack {
@@ -152,6 +233,9 @@ struct LibraryDetailView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { showShare = true } label: { Image(systemName: "square.and.arrow.up") }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button(role: .destructive) { showDeleteConfirm = true } label: {
                         Image(systemName: "trash")
                     }
@@ -171,6 +255,9 @@ struct LibraryDetailView: View {
                 Text(item.dngURL != nil && item.jpegURL != nil
                      ? "Removes both the DNG and its JPEG from this iPhone."
                      : "Removes this file from this iPhone.")
+            }
+            .sheet(isPresented: $showShare) {
+                ShareSheet(items: [item.dngURL, item.jpegURL].compactMap { $0 })
             }
             .task { await loadFull() }
         }
@@ -222,4 +309,14 @@ struct ZoomableImage: View {
                 }
             }
     }
+}
+
+// MARK: - Share sheet
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

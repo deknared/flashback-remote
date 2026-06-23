@@ -75,6 +75,28 @@ final class LibraryViewModel: ObservableObject {
         items.removeAll { $0.id == item.id }
         ThumbnailCache.shared.remove(item.id)
     }
+
+    func delete(ids: Set<String>) {
+        for item in items where ids.contains(item.id) {
+            for url in [item.dngURL, item.jpegURL].compactMap({ $0 }) {
+                try? FileManager.default.removeItem(at: url)
+            }
+            ThumbnailCache.shared.remove(item.id)
+        }
+        items.removeAll { ids.contains($0.id) }
+    }
+
+    // All files (DNG + JPEG) for the given items, for the share sheet.
+    func fileURLs(for ids: Set<String>) -> [URL] {
+        items.filter { ids.contains($0.id) }
+            .flatMap { [$0.dngURL, $0.jpegURL].compactMap { $0 } }
+    }
+
+    // True when the library holds a mix of raw and non-raw frames, so a RAW badge
+    // is meaningful. If everything is a DNG, the badge is just noise.
+    var showsRawBadges: Bool {
+        items.contains { $0.dngURL == nil } && items.contains { $0.dngURL != nil }
+    }
 }
 
 // MARK: - Thumbnail cache + decoding
@@ -115,12 +137,17 @@ enum ImageDecoder {
         return UIImage(cgImage: cg)
     }
 
-    private static let ciContext = CIContext()
+    private static let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
+    private static let ciContext = CIContext(options: [.workingColorSpace: srgb,
+                                                       .outputColorSpace: srgb])
     private static func rawDecode(url: URL, maxPixel: CGFloat) -> UIImage? {
         guard let filter = CIRAWFilter(imageURL: url), let output = filter.outputImage else { return nil }
         let scale = min(1, maxPixel / max(output.extent.width, output.extent.height))
         let scaled = output.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        guard let cg = ciContext.createCGImage(scaled, from: scaled.extent) else { return nil }
+        // Render through an explicit sRGB space — without this, CIRAWFilter output
+        // comes out as wrong-colour garbage (the red/yellow blocks).
+        guard let cg = ciContext.createCGImage(scaled, from: scaled.extent,
+                                               format: .RGBA8, colorSpace: srgb) else { return nil }
         return UIImage(cgImage: cg)
     }
 }

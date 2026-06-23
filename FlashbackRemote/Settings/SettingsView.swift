@@ -15,6 +15,10 @@ struct SettingsView: View {
             diagnosticsSection
             uuidOverridesSection
             aboutSection
+
+            // Clears the floating tab bar so the last row isn't hidden behind it.
+            Section { Color.clear.frame(height: 44) }
+                .listRowBackground(Color.clear)
         }
         .navigationTitle("Settings")
     }

@@ -77,7 +77,7 @@ final class SettingsStore: ObservableObject {
         dngOnly = UserDefaults.standard.object(forKey: "dngOnly") as? Bool ?? false
         alwaysDeleteFromCamera = UserDefaults.standard.object(forKey: "alwaysDeleteFromCamera") as? Bool ?? false
         shortcutName = UserDefaults.standard.string(forKey: "shortcutName") ?? ""
-        downloadConcurrency = (UserDefaults.standard.object(forKey: "downloadConcurrency") as? Int).map { min(max($0, 1), 6) } ?? 3
+        downloadConcurrency = (UserDefaults.standard.object(forKey: "downloadConcurrency") as? Int).map { min(max($0, 1), 6) } ?? 1
         useStagingEditor = UserDefaults.standard.object(forKey: "useStagingEditor") as? Bool ?? false
 
         overrideServiceUUID = UserDefaults.standard.string(forKey: "ov_serviceUUID") ?? ""
