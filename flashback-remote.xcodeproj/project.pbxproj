@@ -22,6 +22,7 @@
 		AA000023 /* CreditsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100023 /* CreditsView.swift */; };
 		AA000024 /* GlassTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100024 /* GlassTabBar.swift */; };
 		AA000025 /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100025 /* LibraryViewModel.swift */; };
+		AA000027 /* One35DNGDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100027 /* One35DNGDecoder.swift */; };
 		AA000026 /* LibraryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100026 /* LibraryTab.swift */; };
 		AA000011 /* EditorTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100011 /* EditorTab.swift */; };
 		AA000012 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100012 /* SettingsView.swift */; };
@@ -49,6 +50,7 @@
 		AA100023 /* CreditsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditsView.swift; sourceTree = "<group>"; };
 		AA100024 /* GlassTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassTabBar.swift; sourceTree = "<group>"; };
 		AA100025 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
+		AA100027 /* One35DNGDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = One35DNGDecoder.swift; sourceTree = "<group>"; };
 		AA100026 /* LibraryTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTab.swift; sourceTree = "<group>"; };
 		AA100011 /* EditorTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTab.swift; sourceTree = "<group>"; };
 		AA100012 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -94,6 +96,7 @@
 			isa = PBXGroup;
 			children = (
 				AA100025 /* LibraryViewModel.swift */,
+				AA100027 /* One35DNGDecoder.swift */,
 				AA100026 /* LibraryTab.swift */,
 			);
 			path = Library;
@@ -269,6 +272,7 @@
 				AA000023 /* CreditsView.swift in Sources */,
 				AA000024 /* GlassTabBar.swift in Sources */,
 				AA000025 /* LibraryViewModel.swift in Sources */,
+				AA000027 /* One35DNGDecoder.swift in Sources */,
 				AA000026 /* LibraryTab.swift in Sources */,
 				AA000009 /* DiagnosticsView.swift in Sources */,
 				AA000013 /* SettingsStore.swift in Sources */,

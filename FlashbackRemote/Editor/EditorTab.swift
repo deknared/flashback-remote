@@ -5,12 +5,15 @@ struct EditorTab: View {
     @EnvironmentObject var settings: SettingsStore
 
     var body: some View {
-        // No nav bar — the web editor has its own chrome. We only ignore the top
-        // safe area; the bottom keeps the tab-bar inset so the editor's effects /
-        // export controls sit above the floating tab bar.
-        WebView(url: settings.editorURL)
-            .ignoresSafeArea(edges: .top)
-            .id(settings.editorURL)
+        // No nav bar — the web editor has its own chrome. A fixed bottom spacer
+        // (the height of the floating tab bar) keeps the editor's effects/export
+        // controls visible above it.
+        VStack(spacing: 0) {
+            WebView(url: settings.editorURL)
+                .ignoresSafeArea(edges: .top)
+                .id(settings.editorURL)
+            Color.clear.frame(height: 64)
+        }
     }
 }
 

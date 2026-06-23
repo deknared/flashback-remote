@@ -23,6 +23,8 @@ struct CameraTab: View {
                 if let error = ble.lastError {
                     errorSection(error)
                 }
+                Section { Color.clear.frame(height: 70) }
+                    .listRowBackground(Color.clear)
             }
             .refreshable {
                 ble.refresh()

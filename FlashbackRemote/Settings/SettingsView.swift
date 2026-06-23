@@ -17,7 +17,7 @@ struct SettingsView: View {
             aboutSection
 
             // Clears the floating tab bar so the last row isn't hidden behind it.
-            Section { Color.clear.frame(height: 44) }
+            Section { Color.clear.frame(height: 70) }
                 .listRowBackground(Color.clear)
         }
         .navigationTitle("Settings")

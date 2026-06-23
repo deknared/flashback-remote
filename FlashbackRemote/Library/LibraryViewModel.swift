@@ -104,24 +104,56 @@ final class LibraryViewModel: ObservableObject {
 final class ThumbnailCache {
     static let shared = ThumbnailCache()
     private let cache = NSCache<NSString, UIImage>()
-    func image(for key: String) -> UIImage? { cache.object(forKey: key as NSString) }
-    func set(_ image: UIImage, for key: String) { cache.setObject(image, forKey: key as NSString) }
-    func remove(_ key: String) { cache.removeObject(forKey: key as NSString) }
+    private let dir: URL
+
+    init() {
+        dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("FlashbackThumbs", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    }
+
+    func image(for key: String) -> UIImage? {
+        if let mem = cache.object(forKey: key as NSString) { return mem }
+        // Fall back to the on-disk render so re-launching the Library is instant.
+        if let data = try? Data(contentsOf: fileURL(key)), let img = UIImage(data: data) {
+            cache.setObject(img, forKey: key as NSString)
+            return img
+        }
+        return nil
+    }
+
+    func set(_ image: UIImage, for key: String) {
+        cache.setObject(image, forKey: key as NSString)
+        if let data = image.jpegData(compressionQuality: 0.8) {
+            try? data.write(to: fileURL(key))
+        }
+    }
+
+    func remove(_ key: String) {
+        cache.removeObject(forKey: key as NSString)
+        try? FileManager.default.removeItem(at: fileURL(key))
+    }
+
+    private func fileURL(_ key: String) -> URL {
+        dir.appendingPathComponent(key.replacingOccurrences(of: "/", with: "_") + ".jpg")
+    }
 }
 
 enum ImageDecoder {
-    // Fast path for JPEG/embedded previews; real raw decode for DNG-only frames
-    // (whose embedded preview the camera often omits — why Files shows black).
+    // ONE35 DNGs use our ported Bayer decoder (CIRAWFilter mis-reads them).
+    // JPEGs use the fast ImageIO thumbnail path.
     static func thumbnail(url: URL, maxPixel: CGFloat) -> UIImage? {
         if url.pathExtension.lowercased() == "dng" {
-            return rawDecode(url: url, maxPixel: maxPixel) ?? sourceThumbnail(url: url, maxPixel: maxPixel)
+            return One35DNGDecoder.decode(url: url, maxDimension: Int(maxPixel))
+                ?? sourceThumbnail(url: url, maxPixel: maxPixel)
         }
         return sourceThumbnail(url: url, maxPixel: maxPixel)
     }
 
     static func fullImage(url: URL, maxPixel: CGFloat = 2400) -> UIImage? {
         if url.pathExtension.lowercased() == "dng" {
-            return rawDecode(url: url, maxPixel: maxPixel) ?? UIImage(contentsOfFile: url.path)
+            return One35DNGDecoder.decode(url: url, maxDimension: 2072)
+                ?? UIImage(contentsOfFile: url.path)
         }
         return sourceThumbnail(url: url, maxPixel: maxPixel) ?? UIImage(contentsOfFile: url.path)
     }
@@ -134,20 +166,6 @@ enum ImageDecoder {
         ]
         guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
               let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary) else { return nil }
-        return UIImage(cgImage: cg)
-    }
-
-    private static let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
-    private static let ciContext = CIContext(options: [.workingColorSpace: srgb,
-                                                       .outputColorSpace: srgb])
-    private static func rawDecode(url: URL, maxPixel: CGFloat) -> UIImage? {
-        guard let filter = CIRAWFilter(imageURL: url), let output = filter.outputImage else { return nil }
-        let scale = min(1, maxPixel / max(output.extent.width, output.extent.height))
-        let scaled = output.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        // Render through an explicit sRGB space — without this, CIRAWFilter output
-        // comes out as wrong-colour garbage (the red/yellow blocks).
-        guard let cg = ciContext.createCGImage(scaled, from: scaled.extent,
-                                               format: .RGBA8, colorSpace: srgb) else { return nil }
         return UIImage(cgImage: cg)
     }
 }

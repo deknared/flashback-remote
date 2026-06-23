@@ -187,6 +187,9 @@ struct FilesTab: View {
                     .buttonStyle(.borderedProminent)
                 }
             }
+
+            Section { Color.clear.frame(height: 70) }
+                .listRowBackground(Color.clear)
         }
         .listStyle(.insetGrouped)
         .confirmationDialog(

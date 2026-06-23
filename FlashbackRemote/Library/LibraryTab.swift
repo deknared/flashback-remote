@@ -68,6 +68,7 @@ struct LibraryTab: View {
                 }
             }
             .padding(4)
+            .padding(.bottom, 70)   // clear the floating tab bar
         }
         .refreshable { vm.load() }
     }
