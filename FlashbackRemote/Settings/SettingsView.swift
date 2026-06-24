@@ -205,65 +205,36 @@ struct WhatsNewView: View {
     private struct Release: Identifiable {
         let id = UUID()
         let version: String
-        let notes: [String]
+        let summary: String
     }
 
     private let releases: [Release] = [
-        Release(version: "1.1.4", notes: [
-            "Library: multi-photo Share now works",
-            "Swipe left/right between photos in the viewer",
-            "Smoother filmstrip (only the open photo expands) and pinch-zoom",
-            "File name no longer hidden behind the filmstrip",
-            "This What's New page"
-        ]),
-        Release(version: "1.1.3", notes: [
-            "Photos-style Library: full-screen viewer with a scrollable filmstrip",
-            "Long-press to select; Share / Delete / Select All in a glass action bar",
-            "Removed the Select button; large title to match the other tabs"
-        ]),
-        Release(version: "1.1.2", notes: [
-            "Library now decodes ONE35 DNGs correctly (native Bayer decoder) — no more colour banding",
-            "Thumbnails are cached so the Library reopens instantly",
-            "Editor: effects/export no longer hidden behind the tab bar"
-        ]),
-        Release(version: "1.1.1", notes: [
-            "Editor returned to full-screen (no top bar)",
-            "Library selection + share groundwork",
-            "Download concurrency made a setting"
-        ]),
-        Release(version: "1.1.0", notes: [
-            "Settings moved into its own tab; new floating glass tab bar",
-            "New Library tab to preview and prune photos on-device",
-            "Pull-to-refresh in the Editor; parallel downloads",
-            "New app icon"
-        ])
+        Release(version: "1.1.5",
+                summary: "Continuous, smooth filmstrip in the photo viewer; fixed tapping a photo sometimes opening halfway; and the app icon now matches the Flashback editor."),
+        Release(version: "1.1.4",
+                summary: "Library viewer fixes — multi-photo Share, swipe between photos, a smoother filmstrip and pinch-zoom, the file name shown above the strip, and this What's New page."),
+        Release(version: "1.1.3",
+                summary: "Photos-style Library: a full-screen viewer with a scrollable filmstrip, long-press to select, and a glass action bar for Share / Delete / Select All."),
+        Release(version: "1.1.2",
+                summary: "ONE35 DNGs now decode correctly with a native Bayer decoder (no more colour banding), thumbnails are cached, and the editor's controls clear the tab bar."),
+        Release(version: "1.1.1",
+                summary: "Editor returned to full-screen, Library selection and sharing groundwork, and download concurrency became a setting."),
+        Release(version: "1.1.0",
+                summary: "Settings became its own tab with a floating glass tab bar, a new Library tab to preview and prune photos, Editor pull-to-refresh, parallel downloads, and a new app icon.")
     ]
 
     var body: some View {
         List {
             ForEach(releases) { release in
                 Section("Version \(release.version)") {
-                    ForEach(release.notes, id: \.self) { note in
-                        Label(note, systemImage: "circle.fill")
-                            .labelStyle(BulletLabelStyle())
-                    }
+                    Text(release.summary)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
         .navigationTitle("What's New")
         .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-private struct BulletLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            configuration.icon
-                .font(.system(size: 5))
-                .foregroundStyle(.tint)
-            configuration.title
-                .font(.callout)
-        }
     }
 }
 

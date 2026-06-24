@@ -26,63 +26,9 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Generate app icon
-        run: |
-          python3 << 'PYEOF'
-          import struct, zlib, math
-
-          W, H = 1024, 1024
-          img = [[(26, 26, 26)] * W for _ in range(H)]
-
-          def fill_circle(cx, cy, r, color, img=img):
-              for y in range(max(0, cy-r), min(H, cy+r+1)):
-                  for x in range(max(0, cx-r), min(W, cx+r+1)):
-                      if (x-cx)**2 + (y-cy)**2 <= r*r:
-                          img[y][x] = color
-
-          def fill_rect(x1, y1, x2, y2, color, img=img):
-              for y in range(max(0,y1), min(H,y2)):
-                  for x in range(max(0,x1), min(W,x2)):
-                      img[y][x] = color
-
-          def fill_rrect(x1, y1, x2, y2, r, color):
-              fill_rect(x1+r, y1, x2-r, y2, color)
-              fill_rect(x1, y1+r, x2, y2-r, color)
-              fill_circle(x1+r, y1+r, r, color)
-              fill_circle(x2-r, y1+r, r, color)
-              fill_circle(x1+r, y2-r, r, color)
-              fill_circle(x2-r, y2-r, r, color)
-
-          WHITE = (255, 255, 255)
-          DARK  = (26, 26, 26)
-
-          # Camera body
-          fill_rrect(160, 340, 864, 720, 60, WHITE)
-          # Viewfinder bump
-          fill_rrect(320, 260, 560, 360, 30, WHITE)
-          # Shutter button
-          fill_rrect(680, 268, 820, 340, 24, WHITE)
-          # Lens outer ring
-          fill_circle(512, 530, 168, WHITE)
-          fill_circle(512, 530, 148, DARK)
-          fill_circle(512, 530, 118, WHITE)
-          fill_circle(512, 530, 100, DARK)
-          fill_circle(512, 530, 72,  WHITE)
-          fill_circle(512, 530, 56,  DARK)
-
-          def png(w, h, rows):
-              raw = b"".join(b"\x00" + bytes(b for px in row for b in px) for row in rows)
-              def chunk(t, d):
-                  return struct.pack(">I",len(d))+t+d+struct.pack(">I",zlib.crc32(t+d)&0xffffffff)
-              return (b"\x89PNG\r\n\x1a\n"
-                      + chunk(b"IHDR", struct.pack(">IIBBBBB",w,h,8,2,0,0,0))
-                      + chunk(b"IDAT", zlib.compress(raw,9))
-                      + chunk(b"IEND", b""))
-
-          with open("FlashbackRemote/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png","wb") as f:
-              f.write(png(W, H, img))
-          print("Icon generated: 1024x1024 camera icon")
-          PYEOF
+      # NOTE: the committed AppIcon.png (Assets.xcassets) is the source of truth.
+      # A previous "Generate app icon" step here overwrote it on every build,
+      # which is why the icon never updated — removed.
 
       - name: Build archive (unsigned — SideStore re-signs on install)
         run: |

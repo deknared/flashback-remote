@@ -55,19 +55,23 @@ struct LibraryTab: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(vm.items) { item in
-                    LibraryThumbnail(item: item,
-                                     showBadge: vm.showsRawBadges,
-                                     isSelecting: isSelecting,
-                                     isSelected: selection.contains(item.id))
-                        .onTapGesture {
-                            if isSelecting { toggle(item) } else { viewerItem = item }
-                        }
-                        .onLongPressGesture {
+                    Button {
+                        if isSelecting { toggle(item) } else { viewerItem = item }
+                    } label: {
+                        LibraryThumbnail(item: item,
+                                         showBadge: vm.showsRawBadges,
+                                         isSelecting: isSelecting,
+                                         isSelected: selection.contains(item.id))
+                    }
+                    .buttonStyle(.plain)
+                    .simultaneousGesture(
+                        LongPressGesture(minimumDuration: 0.4).onEnded { _ in
                             if !isSelecting {
                                 isSelecting = true
                                 selection = [item.id]
                             }
                         }
+                    )
                 }
             }
             .padding(4)
@@ -297,28 +301,9 @@ struct PhotoViewer: View {
     }
 
     private var filmstrip: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 3) {
-                    ForEach(Array(vm.items.enumerated()), id: \.element.id) { i, item in
-                        FilmstripThumb(item: item, isCurrent: i == index)
-                            .id(i)
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.25)) { index = i }
-                            }
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
-            .frame(height: 60)
-            .padding(.vertical, 8)
+        FilmstripScrubber(items: vm.items, index: $index)
+            .frame(height: 64)
             .background(.ultraThinMaterial)
-            .animation(.easeInOut(duration: 0.25), value: index)
-            .onChange(of: index) { i in
-                withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(i, anchor: .center) }
-            }
-            .onAppear { proxy.scrollTo(index, anchor: .center) }
-        }
     }
 
     private func deleteCurrent() {
@@ -355,32 +340,137 @@ struct PageImageView: View {
     }
 }
 
-struct FilmstripThumb: View {
-    let item: LibraryItem
-    let isCurrent: Bool
-    @State private var image: UIImage?
+// Continuous, smoothly-scrubbing filmstrip (UIScrollView-backed). The centred
+// frame is the current photo; neighbours shrink/fade (cover-flow). Scrubbing the
+// strip updates the photo live; swiping the photo scrolls the strip back.
+struct FilmstripScrubber: UIViewRepresentable {
+    let items: [LibraryItem]
+    @Binding var index: Int
 
-    var body: some View {
-        Rectangle()
-            .fill(Color(.secondarySystemBackground))
-            .overlay {
-                if let image { Image(uiImage: image).resizable().scaledToFill() }
+    let itemWidth: CGFloat = 42
+    let itemHeight: CGFloat = 50
+    let spacing: CGFloat = 3
+    var pitch: CGFloat { itemWidth + spacing }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let sv = UIScrollView()
+        sv.showsHorizontalScrollIndicator = false
+        sv.decelerationRate = .fast
+        sv.backgroundColor = .clear
+        sv.delegate = context.coordinator
+
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.spacing = spacing
+        stack.alignment = .center
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        sv.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: sv.contentLayoutGuide.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: sv.contentLayoutGuide.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: sv.contentLayoutGuide.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: sv.contentLayoutGuide.trailingAnchor),
+            stack.heightAnchor.constraint(equalTo: sv.frameLayoutGuide.heightAnchor)
+        ])
+        context.coordinator.scrollView = sv
+        context.coordinator.stack = stack
+        context.coordinator.rebuild(items)
+        return sv
+    }
+
+    func updateUIView(_ sv: UIScrollView, context: Context) {
+        context.coordinator.parent = self
+        if context.coordinator.count != items.count { context.coordinator.rebuild(items) }
+        let inset = max(0, (sv.bounds.width - itemWidth) / 2)
+        if abs(sv.contentInset.left - inset) > 0.5 {
+            sv.contentInset = UIEdgeInsets(top: 0, left: inset, bottom: 0, right: inset)
+        }
+        context.coordinator.scrollTo(index, animated: context.coordinator.didInitialLayout)
+        context.coordinator.didInitialLayout = true
+        context.coordinator.updateTransforms()
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        var parent: FilmstripScrubber
+        weak var scrollView: UIScrollView?
+        weak var stack: UIStackView?
+        var imageViews: [UIImageView] = []
+        var count = 0
+        var isUserScrolling = false
+        var didInitialLayout = false
+
+        init(_ p: FilmstripScrubber) { parent = p }
+
+        func rebuild(_ items: [LibraryItem]) {
+            guard let stack else { return }
+            stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+            imageViews = []
+            for item in items {
+                let iv = UIImageView()
+                iv.contentMode = .scaleAspectFill
+                iv.clipsToBounds = true
+                iv.backgroundColor = .secondarySystemBackground
+                iv.layer.cornerRadius = 5
+                iv.translatesAutoresizingMaskIntoConstraints = false
+                iv.widthAnchor.constraint(equalToConstant: parent.itemWidth).isActive = true
+                iv.heightAnchor.constraint(equalToConstant: parent.itemHeight).isActive = true
+                stack.addArrangedSubview(iv)
+                imageViews.append(iv)
+                load(item, into: iv)
             }
-            .frame(width: isCurrent ? 52 : 26, height: 50)   // expand only the current frame
-            .clipShape(RoundedRectangle(cornerRadius: 5))
-            .overlay {
-                RoundedRectangle(cornerRadius: 5)
-                    .strokeBorder(Color.white, lineWidth: isCurrent ? 2 : 0)
+            count = items.count
+        }
+
+        private func load(_ item: LibraryItem, into iv: UIImageView) {
+            if let cached = ThumbnailCache.shared.image(for: item.id) { iv.image = cached; return }
+            guard let url = item.thumbnailSourceURL else { return }
+            Task.detached(priority: .utility) {
+                guard let img = ImageDecoder.thumbnail(url: url, maxPixel: 200) else { return }
+                ThumbnailCache.shared.set(img, for: item.id)
+                await MainActor.run { iv.image = img }
             }
-            .opacity(isCurrent ? 1 : 0.55)
-            .task(id: item.id) {
-                if let cached = ThumbnailCache.shared.image(for: item.id) { image = cached; return }
-                guard let url = item.thumbnailSourceURL else { return }
-                let img = await Task.detached(priority: .utility) {
-                    ImageDecoder.thumbnail(url: url, maxPixel: 200)
-                }.value
-                if let img { ThumbnailCache.shared.set(img, for: item.id); image = img }
+        }
+
+        func scrollTo(_ index: Int, animated: Bool) {
+            guard let sv = scrollView, !isUserScrolling, count > 0 else { return }
+            let i = max(0, min(count - 1, index))
+            let targetX = CGFloat(i) * parent.pitch + parent.itemWidth / 2 - sv.bounds.width / 2
+            sv.setContentOffset(CGPoint(x: targetX, y: 0), animated: animated)
+        }
+
+        func updateTransforms() {
+            guard let sv = scrollView else { return }
+            let viewportCenter = sv.contentOffset.x + sv.bounds.width / 2
+            for (i, iv) in imageViews.enumerated() {
+                let itemCenter = CGFloat(i) * parent.pitch + parent.itemWidth / 2
+                let d = abs(itemCenter - viewportCenter)
+                let t = max(0, 1 - d / (parent.pitch * 2.5))
+                let scale = 0.7 + 0.3 * t
+                iv.transform = CGAffineTransform(scaleX: scale, y: scale)
+                iv.alpha = 0.45 + 0.55 * t
             }
+        }
+
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) { isUserScrolling = true }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            updateTransforms()
+            guard isUserScrolling, count > 0 else { return }
+            let viewportCenter = scrollView.contentOffset.x + scrollView.bounds.width / 2
+            let i = Int(((viewportCenter - parent.itemWidth / 2) / parent.pitch).rounded())
+            let clamped = max(0, min(count - 1, i))
+            if clamped != parent.index { parent.index = clamped }
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            if !decelerate { isUserScrolling = false; scrollTo(parent.index, animated: true) }
+        }
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            isUserScrolling = false
+            scrollTo(parent.index, animated: true)
+        }
     }
 }
 
