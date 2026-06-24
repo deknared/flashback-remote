@@ -14,6 +14,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.1.5",
+          "date": "2026-06-24",
+          "localizedDescription": "Icon + Library polish.\n\n• App icon now matches the Flashback editor (a stale build step had been overwriting it on every build)\n• Continuous, smooth filmstrip in the photo viewer\n• Fixed tapping a photo sometimes only opening halfway\n• What's New now shows a summary per version",
+          "downloadURL": "https://github.com/deknared/flashback-remote/releases/download/v1.1.5/FlashbackRemote.ipa",
+          "size": 466790,
+          "minOSVersion": "16.0"
+        },
+        {
           "version": "1.1.4",
           "date": "2026-06-24",
           "localizedDescription": "Library viewer fixes.\n\n• Multi-photo Share now works\n• Swipe left/right between photos in the viewer\n• Smoother filmstrip (only the open photo expands) and pinch-zoom\n• File name no longer hidden behind the filmstrip\n• New What's New page in Settings → About",
