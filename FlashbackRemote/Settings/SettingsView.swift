@@ -111,6 +111,11 @@ struct SettingsView: View {
         Section("About") {
             LabeledContent("Version", value: Self.appVersion)
             NavigationLink {
+                WhatsNewView()
+            } label: {
+                Text("What's New")
+            }
+            NavigationLink {
                 CreditsView()
             } label: {
                 Text("Credits")
@@ -191,6 +196,74 @@ struct SettingsView: View {
         Circle()
             .fill(status.color)
             .frame(width: 8, height: 8)
+    }
+}
+
+// MARK: - What's New
+
+struct WhatsNewView: View {
+    private struct Release: Identifiable {
+        let id = UUID()
+        let version: String
+        let notes: [String]
+    }
+
+    private let releases: [Release] = [
+        Release(version: "1.1.4", notes: [
+            "Library: multi-photo Share now works",
+            "Swipe left/right between photos in the viewer",
+            "Smoother filmstrip (only the open photo expands) and pinch-zoom",
+            "File name no longer hidden behind the filmstrip",
+            "This What's New page"
+        ]),
+        Release(version: "1.1.3", notes: [
+            "Photos-style Library: full-screen viewer with a scrollable filmstrip",
+            "Long-press to select; Share / Delete / Select All in a glass action bar",
+            "Removed the Select button; large title to match the other tabs"
+        ]),
+        Release(version: "1.1.2", notes: [
+            "Library now decodes ONE35 DNGs correctly (native Bayer decoder) — no more colour banding",
+            "Thumbnails are cached so the Library reopens instantly",
+            "Editor: effects/export no longer hidden behind the tab bar"
+        ]),
+        Release(version: "1.1.1", notes: [
+            "Editor returned to full-screen (no top bar)",
+            "Library selection + share groundwork",
+            "Download concurrency made a setting"
+        ]),
+        Release(version: "1.1.0", notes: [
+            "Settings moved into its own tab; new floating glass tab bar",
+            "New Library tab to preview and prune photos on-device",
+            "Pull-to-refresh in the Editor; parallel downloads",
+            "New app icon"
+        ])
+    ]
+
+    var body: some View {
+        List {
+            ForEach(releases) { release in
+                Section("Version \(release.version)") {
+                    ForEach(release.notes, id: \.self) { note in
+                        Label(note, systemImage: "circle.fill")
+                            .labelStyle(BulletLabelStyle())
+                    }
+                }
+            }
+        }
+        .navigationTitle("What's New")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct BulletLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            configuration.icon
+                .font(.system(size: 5))
+                .foregroundStyle(.tint)
+            configuration.title
+                .font(.callout)
+        }
     }
 }
 

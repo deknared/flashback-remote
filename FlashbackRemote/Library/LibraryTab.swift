@@ -9,8 +9,7 @@ struct LibraryTab: View {
     @State private var isSelecting = false
     @State private var selection: Set<String> = []
     @State private var showDeleteConfirm = false
-    @State private var shareURLs: [URL] = []
-    @State private var showShare = false
+    @State private var sharePayload: SharePayload?
 
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 4)]
 
@@ -46,8 +45,8 @@ struct LibraryTab: View {
             } message: {
                 Text("Removes the selected DNGs and their matching JPEGs from this iPhone.")
             }
-            .sheet(isPresented: $showShare) {
-                ShareSheet(items: shareURLs)
+            .sheet(item: $sharePayload) { payload in
+                ShareSheet(items: payload.urls)
             }
         }
     }
@@ -95,8 +94,8 @@ struct LibraryTab: View {
     private var selectionActionBar: some View {
         HStack {
             Button {
-                shareURLs = vm.fileURLs(for: selection)
-                showShare = true
+                let urls = vm.fileURLs(for: selection)
+                if !urls.isEmpty { sharePayload = SharePayload(urls: urls) }
             } label: {
                 Image(systemName: "square.and.arrow.up").font(.title3)
             }
@@ -230,7 +229,7 @@ struct PhotoViewer: View {
     @Environment(\.dismiss) private var dismiss
     @State private var index = 0
     @State private var showDeleteConfirm = false
-    @State private var showShare = false
+    @State private var sharePayload: SharePayload?
 
     var body: some View {
         ZStack {
@@ -250,6 +249,14 @@ struct PhotoViewer: View {
                 VStack(spacing: 0) {
                     topBar
                     Spacer()
+                    if let c = current {
+                        Text(c.displayName)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12).padding(.vertical, 5)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .padding(.bottom, 8)
+                    }
                     filmstrip
                 }
             }
@@ -261,10 +268,8 @@ struct PhotoViewer: View {
         } message: {
             Text("Removes the DNG and any matching JPEG from this iPhone.")
         }
-        .sheet(isPresented: $showShare) {
-            if vm.items.indices.contains(index) {
-                ShareSheet(items: [vm.items[index].dngURL, vm.items[index].jpegURL].compactMap { $0 })
-            }
+        .sheet(item: $sharePayload) { payload in
+            ShareSheet(items: payload.urls)
         }
     }
 
@@ -274,7 +279,11 @@ struct PhotoViewer: View {
         HStack {
             Button("Done") { dismiss() }
             Spacer()
-            Button { showShare = true } label: { Image(systemName: "square.and.arrow.up") }
+            Button {
+                if let c = current {
+                    sharePayload = SharePayload(urls: [c.dngURL, c.jpegURL].compactMap { $0 })
+                }
+            } label: { Image(systemName: "square.and.arrow.up") }
             Button(role: .destructive) { showDeleteConfirm = true } label: { Image(systemName: "trash") }
                 .padding(.leading, 16)
         }
@@ -290,22 +299,23 @@ struct PhotoViewer: View {
     private var filmstrip: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     ForEach(Array(vm.items.enumerated()), id: \.element.id) { i, item in
                         FilmstripThumb(item: item, isCurrent: i == index)
                             .id(i)
                             .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) { index = i }
+                                withAnimation(.easeInOut(duration: 0.25)) { index = i }
                             }
                     }
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 16)
             }
-            .frame(height: 64)
+            .frame(height: 60)
             .padding(.vertical, 8)
             .background(.ultraThinMaterial)
+            .animation(.easeInOut(duration: 0.25), value: index)
             .onChange(of: index) { i in
-                withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(i, anchor: .center) }
+                withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(i, anchor: .center) }
             }
             .onAppear { proxy.scrollTo(index, anchor: .center) }
         }
@@ -356,13 +366,13 @@ struct FilmstripThumb: View {
             .overlay {
                 if let image { Image(uiImage: image).resizable().scaledToFill() }
             }
-            .frame(width: 48, height: 48)
+            .frame(width: isCurrent ? 52 : 26, height: 50)   // expand only the current frame
             .clipShape(RoundedRectangle(cornerRadius: 5))
             .overlay {
                 RoundedRectangle(cornerRadius: 5)
                     .strokeBorder(Color.white, lineWidth: isCurrent ? 2 : 0)
             }
-            .opacity(isCurrent ? 1 : 0.6)
+            .opacity(isCurrent ? 1 : 0.55)
             .task(id: item.id) {
                 if let cached = ThumbnailCache.shared.image(for: item.id) { image = cached; return }
                 guard let url = item.thumbnailSourceURL else { return }
@@ -391,20 +401,26 @@ struct ZoomableImage: View {
             .offset(offset)
             .gesture(
                 MagnificationGesture()
-                    .onChanged { value in scale = max(1, lastScale * value) }
-                    .onEnded { _ in lastScale = scale; if scale <= 1 { withAnimation { offset = .zero; lastOffset = .zero } } }
+                    .onChanged { value in scale = min(max(1, lastScale * value), 6) }
+                    .onEnded { _ in
+                        lastScale = scale
+                        if scale <= 1 { withAnimation(.easeOut(duration: 0.2)) { offset = .zero; lastOffset = .zero } }
+                    }
             )
+            // Pan only when zoomed in. Disabling it at 1× (including: .none) lets the
+            // parent paging TabView receive horizontal swipes — otherwise the drag
+            // captured them and left/right paging never fired.
             .simultaneousGesture(
                 DragGesture()
                     .onChanged { value in
-                        guard scale > 1 else { return }
                         offset = CGSize(width: lastOffset.width + value.translation.width,
                                         height: lastOffset.height + value.translation.height)
                     }
-                    .onEnded { _ in lastOffset = offset }
+                    .onEnded { _ in lastOffset = offset },
+                including: scale > 1 ? .all : .subviews
             )
             .onTapGesture(count: 2) {
-                withAnimation {
+                withAnimation(.easeInOut(duration: 0.25)) {
                     if scale > 1 { scale = 1; lastScale = 1; offset = .zero; lastOffset = .zero }
                     else { scale = 2.5; lastScale = 2.5 }
                 }
@@ -413,6 +429,11 @@ struct ZoomableImage: View {
 }
 
 // MARK: - Share sheet
+
+struct SharePayload: Identifiable {
+    let id = UUID()
+    let urls: [URL]
+}
 
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
