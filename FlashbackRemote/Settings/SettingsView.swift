@@ -221,6 +221,10 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.2.1", notes: [
+            "Fixed scrolling in the Library (it could grab a photo instead of scrolling)",
+            "Fixed swiping between photos sometimes getting stuck midway"
+        ]),
         Release(version: "1.2.0", notes: [
             "New look: liquid-glass styling across the app and the Flashback orange accent",
             "Light / Dark / System appearance setting",

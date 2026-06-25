@@ -55,6 +55,10 @@ struct LibraryTab: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(vm.items) { item in
+                    // Plain Button only — no extra gesture. Adding a simultaneous
+                    // long-press here is what hijacked the scroll (a drag fired the
+                    // button and opened a photo). Selection is entered via the
+                    // "Select" toolbar button instead.
                     Button {
                         if isSelecting { toggle(item) } else { viewerItem = item }
                     } label: {
@@ -64,14 +68,6 @@ struct LibraryTab: View {
                                          isSelected: selection.contains(item.id))
                     }
                     .buttonStyle(.plain)
-                    .simultaneousGesture(
-                        LongPressGesture(minimumDuration: 0.4).onEnded { _ in
-                            if !isSelecting {
-                                isSelecting = true
-                                selection = [item.id]
-                            }
-                        }
-                    )
                 }
             }
             .padding(4)
@@ -91,6 +87,10 @@ struct LibraryTab: View {
                     if allSelected { selection = [] }
                     else { selection = Set(vm.items.map(\.id)) }
                 }
+            }
+        } else if !vm.items.isEmpty {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Select") { isSelecting = true }
             }
         }
     }
@@ -497,18 +497,19 @@ struct ZoomableImage: View {
                         if scale <= 1 { withAnimation(.easeOut(duration: 0.2)) { offset = .zero; lastOffset = .zero } }
                     }
             )
-            // Pan only when zoomed in. Disabling it at 1× (including: .none) lets the
-            // parent paging TabView receive horizontal swipes — otherwise the drag
-            // captured them and left/right paging never fired.
-            .simultaneousGesture(
-                DragGesture()
-                    .onChanged { value in
-                        offset = CGSize(width: lastOffset.width + value.translation.width,
-                                        height: lastOffset.height + value.translation.height)
-                    }
-                    .onEnded { _ in lastOffset = offset },
-                including: scale > 1 ? .all : .subviews
-            )
+            // Attach the pan gesture ONLY when zoomed in. At 1× there's no drag
+            // gesture at all, so the parent paging TabView gets clean horizontal
+            // swipes (no more getting stuck midway between photos).
+            .applyIf(scale > 1) { view in
+                view.gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            offset = CGSize(width: lastOffset.width + value.translation.width,
+                                            height: lastOffset.height + value.translation.height)
+                        }
+                        .onEnded { _ in lastOffset = offset }
+                )
+            }
             .onTapGesture(count: 2) {
                 withAnimation(.easeInOut(duration: 0.25)) {
                     if scale > 1 { scale = 1; lastScale = 1; offset = .zero; lastOffset = .zero }
@@ -531,4 +532,13 @@ struct ShareSheet: UIViewControllerRepresentable {
         UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+extension View {
+    /// Conditionally apply a modifier. Used to attach the pan gesture only when
+    /// the image is zoomed in.
+    @ViewBuilder
+    func applyIf<T: View>(_ condition: Bool, _ transform: (Self) -> T) -> some View {
+        if condition { transform(self) } else { self }
+    }
 }
