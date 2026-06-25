@@ -33,7 +33,15 @@ struct GlassTabBar: View {
                     }
                     .foregroundStyle(selected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 8)
+                    .background {
+                        if selected {
+                            Capsule()
+                                .fill(Color.accentColor.opacity(0.16))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                        }
+                    }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

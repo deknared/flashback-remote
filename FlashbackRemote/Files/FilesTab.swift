@@ -192,6 +192,9 @@ struct FilesTab: View {
                 .listRowBackground(Color.clear)
         }
         .listStyle(.insetGrouped)
+        .task(id: vm.filesLoaded) {
+            if !vm.filesLoaded { vm.autoLoadWhenReachable() }
+        }
         .confirmationDialog(
             "Delete \(vm.files.count) files from camera after download?",
             isPresented: $vm.showDeleteConfirm,
@@ -263,7 +266,9 @@ struct FilesTab: View {
             .buttonStyle(.borderedProminent)
         }
         .padding()
-        .background(Color(.systemGroupedBackground))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.primary.opacity(0.06)))
+        .padding(.horizontal, 4)
     }
 
     private func credRow(label: String, value: String) -> some View {

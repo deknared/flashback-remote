@@ -8,6 +8,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            appearanceSection
             saveLocationSection
             shortcutSection
             editorSection
@@ -21,6 +22,17 @@ struct SettingsView: View {
                 .listRowBackground(Color.clear)
         }
         .navigationTitle("Settings")
+    }
+
+    private var appearanceSection: some View {
+        Section("Appearance") {
+            Picker("Theme", selection: $settings.appearance) {
+                ForEach(AppAppearance.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
     }
 
     private var editorSection: some View {
@@ -205,36 +217,44 @@ struct WhatsNewView: View {
     private struct Release: Identifiable {
         let id = UUID()
         let version: String
-        let summary: String
+        let notes: [String]
     }
 
     private let releases: [Release] = [
-        Release(version: "1.1.5",
-                summary: "Continuous, smooth filmstrip in the photo viewer; fixed tapping a photo sometimes opening halfway; and the app icon now matches the Flashback editor."),
-        Release(version: "1.1.4",
-                summary: "Library viewer fixes — multi-photo Share, swipe between photos, a smoother filmstrip and pinch-zoom, the file name shown above the strip, and this What's New page."),
-        Release(version: "1.1.3",
-                summary: "Photos-style Library: a full-screen viewer with a scrollable filmstrip, long-press to select, and a glass action bar for Share / Delete / Select All."),
-        Release(version: "1.1.2",
-                summary: "ONE35 DNGs now decode correctly with a native Bayer decoder (no more colour banding), thumbnails are cached, and the editor's controls clear the tab bar."),
-        Release(version: "1.1.1",
-                summary: "Editor returned to full-screen, Library selection and sharing groundwork, and download concurrency became a setting."),
-        Release(version: "1.1.0",
-                summary: "Settings became its own tab with a floating glass tab bar, a new Library tab to preview and prune photos, Editor pull-to-refresh, parallel downloads, and a new app icon.")
+        Release(version: "1.2.0", notes: [
+            "New look: liquid-glass styling across the app and the Flashback orange accent",
+            "Light / Dark / System appearance setting",
+            "Active tab is highlighted in the floating tab bar",
+            "Files load automatically once you join the camera's WiFi",
+            "Roll length is remembered between sessions"
+        ])
     ]
 
     var body: some View {
         List {
             ForEach(releases) { release in
                 Section("Version \(release.version)") {
-                    Text(release.summary)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                    ForEach(release.notes, id: \.self) { note in
+                        Label(note, systemImage: "circle.fill")
+                            .labelStyle(BulletLabelStyle())
+                    }
                 }
             }
         }
         .navigationTitle("What's New")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct BulletLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            configuration.icon
+                .font(.system(size: 5))
+                .foregroundStyle(.tint)
+            configuration.title
+                .font(.callout)
+        }
     }
 }
 

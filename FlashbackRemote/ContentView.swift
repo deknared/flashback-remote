@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var filesViewModel: FilesViewModel
+    @EnvironmentObject var settings: SettingsStore
     @State private var selectedTab: Tab = .camera
     @State private var hideTabBar = false
 
@@ -46,6 +47,7 @@ struct ContentView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .preferredColorScheme(settings.appearance.colorScheme)
         .onReceive(filesViewModel.$switchToFilesTab) { should in
             if should {
                 selectedTab = .files

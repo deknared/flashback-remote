@@ -32,6 +32,22 @@ final class HTTPDownloader {
                              delegateQueue: nil)
     }
 
+    // MARK: - Reachability
+
+    /// Quick check (short timeout) of whether the camera's HTTP API is reachable —
+    /// i.e. the phone has actually joined the camera WiFi. Used to auto-load files.
+    func reachable() async -> Bool {
+        var req = URLRequest(url: URL(string: "http://\(host)/files/")!)
+        req.timeoutInterval = 3
+        do {
+            let (_, response) = try await session.data(for: req)
+            if let http = response as? HTTPURLResponse { return (200...499).contains(http.statusCode) }
+            return true
+        } catch {
+            return false
+        }
+    }
+
     // MARK: - Directory listing
 
     func listFiles() async throws -> [CameraFile] {

@@ -150,6 +150,9 @@ struct CameraTab: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
+        .padding(.horizontal, 16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.primary.opacity(0.06)))
     }
 
     private func effectiveStatus(_ version: String) -> FirmwareStatus {

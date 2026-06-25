@@ -49,6 +49,26 @@ final class FilesViewModel: ObservableObject {
         Task { await loadFilesAsync(host: host) }
     }
 
+    private var autoLoading = false
+    // Poll for the camera's HTTP API becoming reachable (the phone joining the
+    // WiFi), then list files automatically — no manual "Load Files" tap.
+    func autoLoadWhenReachable(host: String = "192.168.4.1") {
+        guard !filesLoaded, !autoLoading else { return }
+        autoLoading = true
+        Task {
+            defer { autoLoading = false }
+            let dl = HTTPDownloader(host: host)
+            for _ in 0..<30 {
+                if filesLoaded { return }
+                if await dl.reachable() {
+                    if !filesLoaded { await loadFilesAsync(host: host) }
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+    }
+
     func loadFilesAsync(host: String = "192.168.4.1") async {
         downloadState = .listing
         let dl = HTTPDownloader(host: host)

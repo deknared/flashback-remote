@@ -1,4 +1,24 @@
-import Foundation
+import SwiftUI
+
+enum AppAppearance: String, CaseIterable {
+    case system, light, dark
+
+    var displayName: String {
+        switch self {
+        case .system: return "System"
+        case .light:  return "Light"
+        case .dark:   return "Dark"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
+        }
+    }
+}
 
 enum SaveLocation: String, CaseIterable {
     case photos = "photos"
@@ -33,6 +53,11 @@ final class SettingsStore: ObservableObject {
     // Name of a user Shortcut to run from the Files tab (USB import workflow).
     @Published var shortcutName: String {
         didSet { UserDefaults.standard.set(shortcutName, forKey: "shortcutName") }
+    }
+
+    // App appearance override (System / Light / Dark).
+    @Published var appearance: AppAppearance {
+        didSet { UserDefaults.standard.set(appearance.rawValue, forKey: "appearance") }
     }
 
     // How many files to download from the camera at once. Bounds are enforced by
@@ -77,6 +102,7 @@ final class SettingsStore: ObservableObject {
         dngOnly = UserDefaults.standard.object(forKey: "dngOnly") as? Bool ?? false
         alwaysDeleteFromCamera = UserDefaults.standard.object(forKey: "alwaysDeleteFromCamera") as? Bool ?? false
         shortcutName = UserDefaults.standard.string(forKey: "shortcutName") ?? ""
+        appearance = AppAppearance(rawValue: UserDefaults.standard.string(forKey: "appearance") ?? "") ?? .system
         downloadConcurrency = (UserDefaults.standard.object(forKey: "downloadConcurrency") as? Int).map { min(max($0, 1), 6) } ?? 1
         useStagingEditor = UserDefaults.standard.object(forKey: "useStagingEditor") as? Bool ?? false
 
