@@ -1,25 +1,39 @@
 import SwiftUI
 import UIKit
 
+struct ViewerContext: Identifiable {
+    let id = UUID()
+    let groupID: String
+    let startID: String
+}
+
 struct LibraryTab: View {
     @StateObject private var vm = LibraryViewModel()
     @Binding var hideTabBar: Bool
 
-    @State private var viewerItem: LibraryItem?
+    @State private var viewer: ViewerContext?
     @State private var isSelecting = false
     @State private var selection: Set<String> = []
+    @State private var collapsed: Set<String> = []
     @State private var showDeleteConfirm = false
     @State private var sharePayload: SharePayload?
+
+    // Rename a group / name a new group from selection.
+    @State private var renamingGroup: LibraryGroup?
+    @State private var renameText = ""
+    @State private var showRenameAlert = false
+    @State private var showGroupAlert = false
+    @State private var groupNameText = ""
 
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 4)]
 
     var body: some View {
         NavigationStack {
             Group {
-                if vm.items.isEmpty {
+                if vm.groups.isEmpty {
                     emptyView
                 } else {
-                    grid
+                    content
                 }
             }
             .navigationTitle("Library")
@@ -32,8 +46,8 @@ struct LibraryTab: View {
                 withAnimation(.easeInOut(duration: 0.2)) { hideTabBar = selecting }
             }
             .onDisappear { hideTabBar = false }
-            .fullScreenCover(item: $viewerItem) { item in
-                PhotoViewer(vm: vm, startID: item.id)
+            .fullScreenCover(item: $viewer) { ctx in
+                PhotoViewer(vm: vm, groupID: ctx.groupID, startID: ctx.startID)
             }
             .confirmationDialog("Delete \(selection.count) photo\(selection.count == 1 ? "" : "s")?",
                                 isPresented: $showDeleteConfirm, titleVisibility: .visible) {
@@ -45,35 +59,93 @@ struct LibraryTab: View {
             } message: {
                 Text("Removes the selected DNGs and their matching JPEGs from this iPhone.")
             }
+            .alert("Rename group", isPresented: $showRenameAlert) {
+                TextField("Name", text: $renameText)
+                Button("Rename") {
+                    if let g = renamingGroup { vm.rename(group: g, to: renameText) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(renamingGroup?.isUngrouped == true
+                     ? "Creates a group with this name and moves these photos into it."
+                     : "")
+            }
+            .alert("New group", isPresented: $showGroupAlert) {
+                TextField("Group name", text: $groupNameText)
+                Button("Group") {
+                    vm.group(ids: selection, intoName: groupNameText)
+                    exitSelection()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Moves the selected photos into a group with this name.")
+            }
             .sheet(item: $sharePayload) { payload in
                 ShareSheet(items: payload.urls)
             }
         }
     }
 
-    private var grid: some View {
+    private var content: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 4) {
-                ForEach(vm.items) { item in
-                    // Plain Button only — no extra gesture. Adding a simultaneous
-                    // long-press here is what hijacked the scroll (a drag fired the
-                    // button and opened a photo). Selection is entered via the
-                    // "Select" toolbar button instead.
-                    Button {
-                        if isSelecting { toggle(item) } else { viewerItem = item }
-                    } label: {
-                        LibraryThumbnail(item: item,
-                                         showBadge: vm.showsRawBadges,
-                                         isSelecting: isSelecting,
-                                         isSelected: selection.contains(item.id))
+            LazyVStack(spacing: 14, pinnedViews: [.sectionHeaders]) {
+                ForEach(vm.groups) { group in
+                    Section {
+                        if !collapsed.contains(group.id) {
+                            LazyVGrid(columns: columns, spacing: 4) {
+                                ForEach(group.items) { item in
+                                    cell(item, group: group)
+                                }
+                            }
+                            .padding(.horizontal, 4)
+                        }
+                    } header: {
+                        groupHeader(group)
                     }
-                    .buttonStyle(.plain)
                 }
             }
-            .padding(4)
-            .padding(.bottom, 80)   // clear the floating tab/selection bar
+            .padding(.bottom, 90)   // clear the floating tab/selection bar
         }
         .refreshable { vm.load() }
+    }
+
+    private func cell(_ item: LibraryItem, group: LibraryGroup) -> some View {
+        Button {
+            if isSelecting { toggle(item) }
+            else { viewer = ViewerContext(groupID: group.id, startID: item.id) }
+        } label: {
+            LibraryThumbnail(item: item,
+                             showBadge: vm.showsRawBadges,
+                             isSelecting: isSelecting,
+                             isSelected: selection.contains(item.id))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func groupHeader(_ group: LibraryGroup) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: collapsed.contains(group.id) ? "chevron.right" : "chevron.down")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            Text(group.name)
+                .font(.headline)
+            Text("\(group.items.count)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Image(systemName: "pencil")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) { toggleCollapse(group.id) }
+        }
+        .onLongPressGesture { startRename(group) }
     }
 
     @ToolbarContentBuilder
@@ -85,10 +157,10 @@ struct LibraryTab: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(allSelected ? "Deselect All" : "Select All") {
                     if allSelected { selection = [] }
-                    else { selection = Set(vm.items.map(\.id)) }
+                    else { selection = Set(vm.allItems.map(\.id)) }
                 }
             }
-        } else if !vm.items.isEmpty {
+        } else if !vm.groups.isEmpty {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Select") { isSelecting = true }
             }
@@ -96,12 +168,20 @@ struct LibraryTab: View {
     }
 
     private var selectionActionBar: some View {
-        HStack {
+        HStack(spacing: 22) {
             Button {
                 let urls = vm.fileURLs(for: selection)
                 if !urls.isEmpty { sharePayload = SharePayload(urls: urls) }
             } label: {
                 Image(systemName: "square.and.arrow.up").font(.title3)
+            }
+            .disabled(selection.isEmpty)
+
+            Button {
+                groupNameText = ""
+                showGroupAlert = true
+            } label: {
+                Image(systemName: "folder.badge.plus").font(.title3)
             }
             .disabled(selection.isEmpty)
 
@@ -117,7 +197,7 @@ struct LibraryTab: View {
             }
             .disabled(selection.isEmpty)
         }
-        .padding(.horizontal, 28)
+        .padding(.horizontal, 24)
         .padding(.vertical, 14)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
@@ -127,11 +207,21 @@ struct LibraryTab: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
-    private var allSelected: Bool { !vm.items.isEmpty && selection.count == vm.items.count }
+    private var allSelected: Bool { !vm.allItems.isEmpty && selection.count == vm.allItems.count }
 
     private func toggle(_ item: LibraryItem) {
         if selection.contains(item.id) { selection.remove(item.id) }
         else { selection.insert(item.id) }
+    }
+
+    private func toggleCollapse(_ id: String) {
+        if collapsed.contains(id) { collapsed.remove(id) } else { collapsed.insert(id) }
+    }
+
+    private func startRename(_ group: LibraryGroup) {
+        renamingGroup = group
+        renameText = group.isUngrouped ? "" : group.name
+        showRenameAlert = true
     }
 
     private func exitSelection() {
@@ -147,7 +237,7 @@ struct LibraryTab: View {
                 .symbolRenderingMode(.hierarchical)
             Text("No photos yet")
                 .font(.title3.bold())
-            Text("This reads files saved to **On My iPhone → Flashback Remote**. Transfer with **Save Location = Files App**, then they appear here to preview and prune.")
+            Text("This reads files saved to **On My iPhone → Flashback Remote**. Transfer with **Save Location = Files App**, then they appear here to preview, group and prune.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -228,6 +318,7 @@ struct LibraryThumbnail: View {
 
 struct PhotoViewer: View {
     @ObservedObject var vm: LibraryViewModel
+    let groupID: String
     let startID: String
 
     @Environment(\.dismiss) private var dismiss
@@ -235,15 +326,18 @@ struct PhotoViewer: View {
     @State private var showDeleteConfirm = false
     @State private var sharePayload: SharePayload?
 
+    // Scoped to the photo's own group, so the strip is one roll/folder only.
+    private var items: [LibraryItem] { vm.items(inGroupID: groupID) }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if vm.items.isEmpty {
+            if items.isEmpty {
                 Color.clear.onAppear { dismiss() }
             } else {
                 TabView(selection: $index) {
-                    ForEach(Array(vm.items.enumerated()), id: \.element.id) { i, item in
+                    ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
                         PageImageView(item: item).tag(i)
                     }
                 }
@@ -265,7 +359,7 @@ struct PhotoViewer: View {
                 }
             }
         }
-        .onAppear { index = vm.items.firstIndex { $0.id == startID } ?? 0 }
+        .onAppear { index = items.firstIndex { $0.id == startID } ?? 0 }
         .confirmationDialog("Delete this photo?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { deleteCurrent() }
             Button("Keep", role: .cancel) {}
@@ -277,7 +371,7 @@ struct PhotoViewer: View {
         }
     }
 
-    private var current: LibraryItem? { vm.items.indices.contains(index) ? vm.items[index] : nil }
+    private var current: LibraryItem? { items.indices.contains(index) ? items[index] : nil }
 
     private var topBar: some View {
         HStack {
@@ -301,17 +395,17 @@ struct PhotoViewer: View {
     }
 
     private var filmstrip: some View {
-        FilmstripScrubber(items: vm.items, index: $index)
+        FilmstripScrubber(items: items, index: $index)
             .frame(height: 64)
             .background(.ultraThinMaterial)
     }
 
     private func deleteCurrent() {
         guard let item = current else { return }
-        let wasLast = index >= vm.items.count - 1
+        let wasLast = index >= items.count - 1
         vm.delete(item)
-        if vm.items.isEmpty { dismiss(); return }
-        if wasLast { index = vm.items.count - 1 }
+        if items.isEmpty { dismiss(); return }
+        if wasLast { index = items.count - 1 }
     }
 }
 

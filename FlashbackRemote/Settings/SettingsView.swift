@@ -221,6 +221,13 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.2.2", notes: [
+            "Organise the Library into groups (folders)",
+            "Select photos → group them into a named folder",
+            "Each group is a collapsible section; long-press a header to rename",
+            "New camera imports appear under \"Ungrouped\" — rename it to file them",
+            "The photo viewer's filmstrip is now scoped to one group"
+        ]),
         Release(version: "1.2.1", notes: [
             "Fixed scrolling in the Library (it could grab a photo instead of scrolling)",
             "Fixed swiping between photos sometimes getting stuck midway"
