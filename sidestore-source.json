@@ -14,6 +14,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.2.3",
+          "date": "2026-06-27",
+          "localizedDescription": "Group management + recycle bin.\n\n• Delete a group (long-press its title): keep the photos (ungroup) or delete them\n• Recently Deleted recycle bin — restore photos, or let them auto-remove after 1/3/6 months (set in Settings)\n• Hold a group title to rename (pencil icon removed)\n• Collapsed groups stay collapsed between launches\n• Cleaner, seamless section headers",
+          "downloadURL": "https://github.com/deknared/flashback-remote/releases/download/v1.2.3/FlashbackRemote.ipa",
+          "size": 513662,
+          "minOSVersion": "16.0"
+        },
+        {
           "version": "1.2.2",
           "date": "2026-06-26",
           "localizedDescription": "Organise your rolls into groups.\n\n• Group photos into folders (real subfolders under the app folder)\n• Select photos, then Group them into a named folder\n• Each group is a collapsible section; long-press a header to rename\n• New camera imports appear under \"Ungrouped\" — rename it to file them\n• The photo viewer's filmstrip is scoped to one group",
