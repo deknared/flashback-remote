@@ -60,6 +60,11 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(appearance.rawValue, forKey: "appearance") }
     }
 
+    // How long deleted photos stay in the recycle bin before auto-purge (months).
+    @Published var recycleRetentionMonths: Int {
+        didSet { UserDefaults.standard.set(recycleRetentionMonths, forKey: "recycleRetentionMonths") }
+    }
+
     // How many files to download from the camera at once. Bounds are enforced by
     // the Stepper (1...6) and clamped again where it's used — never reassign this
     // inside its own didSet (that re-publishes mid view-update and crashes).
@@ -103,6 +108,7 @@ final class SettingsStore: ObservableObject {
         alwaysDeleteFromCamera = UserDefaults.standard.object(forKey: "alwaysDeleteFromCamera") as? Bool ?? false
         shortcutName = UserDefaults.standard.string(forKey: "shortcutName") ?? ""
         appearance = AppAppearance(rawValue: UserDefaults.standard.string(forKey: "appearance") ?? "") ?? .system
+        recycleRetentionMonths = (UserDefaults.standard.object(forKey: "recycleRetentionMonths") as? Int) ?? 1
         downloadConcurrency = (UserDefaults.standard.object(forKey: "downloadConcurrency") as? Int).map { min(max($0, 1), 6) } ?? 1
         useStagingEditor = UserDefaults.standard.object(forKey: "useStagingEditor") as? Bool ?? false
 

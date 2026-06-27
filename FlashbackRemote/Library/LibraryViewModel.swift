@@ -34,21 +34,29 @@ struct LibraryGroup: Identifiable {
 @MainActor
 final class LibraryViewModel: ObservableObject {
     @Published var groups: [LibraryGroup] = []
+    @Published var binItems: [LibraryItem] = []
     @Published var isLoading = false
 
     static let ungroupedID = "__ungrouped__"
+    static let recycleBinID = "__recyclebin__"
 
     private let imageExts: Set<String> = ["dng", "jpg", "jpeg"]
+    private let binDelimiter = "##"
+    private var binURL: URL { FlashbackStorage.localFolder.appendingPathComponent(".RecycleBin", isDirectory: true) }
 
     var allItems: [LibraryItem] { groups.flatMap(\.items) }
+    var binItemIDs: Set<String> { Set(binItems.map(\.id)) }
+    var hasBin: Bool { !binItems.isEmpty }
 
     func items(inGroupID id: String) -> [LibraryItem] {
-        groups.first { $0.id == id }?.items ?? []
+        if id == Self.recycleBinID { return binItems }
+        return groups.first { $0.id == id }?.items ?? []
     }
 
     func load() {
         isLoading = true
         defer { isLoading = false }
+        purgeBin()
         let root = FlashbackStorage.localFolder
         let fm = FileManager.default
         try? fm.createDirectory(at: root, withIntermediateDirectories: true)
@@ -57,6 +65,7 @@ final class LibraryViewModel: ObservableObject {
                                                         includingPropertiesForKeys: keys,
                                                         options: [.skipsHiddenFiles]) else {
             groups = []
+            binItems = loadBin()
             return
         }
 
@@ -83,6 +92,7 @@ final class LibraryViewModel: ObservableObject {
         }
 
         groups = result
+        binItems = loadBin()
     }
 
     private func buildItems(from urls: [URL], groupPrefix: String) -> [LibraryItem] {
@@ -112,23 +122,33 @@ final class LibraryViewModel: ObservableObject {
 
     // MARK: Mutations
 
+    // Deleting moves files to the recycle bin (auto-purged after the retention
+    // period set in Settings), so they can be recovered.
     func delete(_ item: LibraryItem) {
-        removeFiles(for: [item])
+        moveToBin(items: [item])
         load()
     }
 
     func delete(ids: Set<String>) {
-        removeFiles(for: allItems.filter { ids.contains($0.id) })
+        moveToBin(items: allItems.filter { ids.contains($0.id) })
         load()
     }
 
-    private func removeFiles(for items: [LibraryItem]) {
-        for item in items {
-            for url in [item.dngURL, item.jpegURL].compactMap({ $0 }) {
-                try? FileManager.default.removeItem(at: url)
+    /// Delete a group. Default = ungroup (move its photos to the root). If
+    /// `deletePhotos` is set, the photos go to the recycle bin instead.
+    func deleteGroup(_ group: LibraryGroup, deletePhotos: Bool) {
+        guard !group.isUngrouped else { return }
+        if deletePhotos {
+            moveToBin(items: group.items)
+        } else {
+            let root = FlashbackStorage.localFolder
+            for item in group.items {
+                moveFiles([item.dngURL, item.jpegURL].compactMap { $0 }, into: root)
+                ThumbnailCache.shared.remove(item.id)
             }
-            ThumbnailCache.shared.remove(item.id)
         }
+        try? FileManager.default.removeItem(at: group.folderURL)
+        load()
     }
 
     /// Move the given items into a (new or existing) named group folder.
@@ -192,12 +212,110 @@ final class LibraryViewModel: ObservableObject {
     }
 
     func fileURLs(for ids: Set<String>) -> [URL] {
-        allItems.filter { ids.contains($0.id) }
+        (allItems + binItems).filter { ids.contains($0.id) }
             .flatMap { [$0.dngURL, $0.jpegURL].compactMap { $0 } }
     }
 
     var showsRawBadges: Bool {
         allItems.contains { $0.dngURL == nil } && allItems.contains { $0.dngURL != nil }
+    }
+
+    // MARK: Recycle bin
+
+    // Bin filenames are "<epoch>##<group>##<originalName>" so we can restore to
+    // the right folder and purge by age.
+    private func moveToBin(items: [LibraryItem]) {
+        let fm = FileManager.default
+        try? fm.createDirectory(at: binURL, withIntermediateDirectories: true)
+        let stamp = Int(Date().timeIntervalSince1970)
+        for item in items {
+            for url in [item.dngURL, item.jpegURL].compactMap({ $0 }) {
+                let group = groupName(forFileAt: url)
+                let name = "\(stamp)\(binDelimiter)\(group)\(binDelimiter)\(url.lastPathComponent)"
+                let dest = binURL.appendingPathComponent(name)
+                if fm.fileExists(atPath: dest.path) { try? fm.removeItem(at: dest) }
+                try? fm.moveItem(at: url, to: dest)
+            }
+            ThumbnailCache.shared.remove(item.id)
+        }
+    }
+
+    private func groupName(forFileAt url: URL) -> String {
+        let parent = url.deletingLastPathComponent()
+        return parent.path == FlashbackStorage.localFolder.path ? "" : parent.lastPathComponent
+    }
+
+    private func loadBin() -> [LibraryItem] {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: binURL, includingPropertiesForKeys: [.fileSizeKey]) else { return [] }
+        struct Acc { var dng: URL?; var jpg: URL?; var size: Int; var date: Date; var origName: String }
+        var acc: [String: Acc] = [:]
+        for url in files {
+            let ext = url.pathExtension.lowercased()
+            guard imageExts.contains(ext) else { continue }
+            let parts = url.lastPathComponent.components(separatedBy: binDelimiter)
+            guard parts.count >= 3, let ms = Double(parts[0]) else { continue }
+            let group = parts[1]
+            let orig = parts[2...].joined(separator: binDelimiter)
+            let base = (orig as NSString).deletingPathExtension
+            let key = "\(parts[0])\(binDelimiter)\(group)\(binDelimiter)\(base)"
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            var a = acc[key] ?? Acc(dng: nil, jpg: nil, size: 0, date: Date(timeIntervalSince1970: ms), origName: orig)
+            if ext == "dng" { a.dng = url; a.origName = orig } else { a.jpg = url }
+            a.size += size
+            acc[key] = a
+        }
+        return acc.map { key, a in
+            LibraryItem(id: "bin/\(key)", displayName: a.origName,
+                        dngURL: a.dng, jpegURL: a.jpg, date: a.date, sizeBytes: a.size)
+        }
+        .sorted { $0.date > $1.date }
+    }
+
+    private func purgeBin() {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: binURL, includingPropertiesForKeys: nil) else { return }
+        let months = UserDefaults.standard.object(forKey: "recycleRetentionMonths") as? Int ?? 1
+        let cutoff = Date().addingTimeInterval(-Double(months) * 30 * 24 * 3600)
+        for url in files {
+            let parts = url.lastPathComponent.components(separatedBy: binDelimiter)
+            if let s = parts.first, let ms = Double(s), Date(timeIntervalSince1970: ms) < cutoff {
+                try? fm.removeItem(at: url)
+            }
+        }
+    }
+
+    func restore(ids: Set<String>) {
+        let root = FlashbackStorage.localFolder
+        let fm = FileManager.default
+        for item in binItems where ids.contains(item.id) {
+            for url in [item.dngURL, item.jpegURL].compactMap({ $0 }) {
+                let parts = url.lastPathComponent.components(separatedBy: binDelimiter)
+                guard parts.count >= 3 else { continue }
+                let group = parts[1]
+                let orig = parts[2...].joined(separator: binDelimiter)
+                let folder = group.isEmpty ? root : root.appendingPathComponent(group, isDirectory: true)
+                try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+                let dest = folder.appendingPathComponent(orig)
+                if fm.fileExists(atPath: dest.path) { try? fm.removeItem(at: dest) }
+                try? fm.moveItem(at: url, to: dest)
+            }
+            ThumbnailCache.shared.remove(item.id)
+        }
+        load()
+    }
+
+    func deleteFromBin(ids: Set<String>) {
+        for item in binItems where ids.contains(item.id) {
+            for url in [item.dngURL, item.jpegURL].compactMap({ $0 }) { try? FileManager.default.removeItem(at: url) }
+            ThumbnailCache.shared.remove(item.id)
+        }
+        load()
+    }
+
+    func emptyBin() {
+        try? FileManager.default.removeItem(at: binURL)
+        load()
     }
 }
 

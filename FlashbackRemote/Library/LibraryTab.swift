@@ -14,7 +14,7 @@ struct LibraryTab: View {
     @State private var viewer: ViewerContext?
     @State private var isSelecting = false
     @State private var selection: Set<String> = []
-    @State private var collapsed: Set<String> = []
+    @State private var collapsed: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "collapsedGroups") ?? [])
     @State private var showDeleteConfirm = false
     @State private var sharePayload: SharePayload?
 
@@ -25,12 +25,17 @@ struct LibraryTab: View {
     @State private var showGroupAlert = false
     @State private var groupNameText = ""
 
+    // Group delete + recycle bin.
+    @State private var deletingGroup: LibraryGroup?
+    @State private var showGroupDeleteConfirm = false
+    @State private var showEmptyBinConfirm = false
+
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 4)]
 
     var body: some View {
         NavigationStack {
             Group {
-                if vm.groups.isEmpty {
+                if vm.groups.isEmpty && !vm.hasBin {
                     emptyView
                 } else {
                     content
@@ -51,24 +56,49 @@ struct LibraryTab: View {
             }
             .confirmationDialog("Delete \(selection.count) photo\(selection.count == 1 ? "" : "s")?",
                                 isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) {
-                    vm.delete(ids: selection)
+                Button(binSelection ? "Delete Permanently" : "Delete", role: .destructive) {
+                    if binSelection { vm.deleteFromBin(ids: selection) } else { vm.delete(ids: selection) }
                     exitSelection()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Removes the selected DNGs and their matching JPEGs from this iPhone.")
+                Text(binSelection
+                     ? "Permanently removes the selected photos from this iPhone."
+                     : "Moves the selected photos to Recently Deleted.")
             }
             .alert("Rename group", isPresented: $showRenameAlert) {
                 TextField("Name", text: $renameText)
                 Button("Rename") {
                     if let g = renamingGroup { vm.rename(group: g, to: renameText) }
                 }
+                if renamingGroup?.isUngrouped == false {
+                    Button("Delete Group", role: .destructive) {
+                        deletingGroup = renamingGroup
+                        showGroupDeleteConfirm = true
+                    }
+                }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text(renamingGroup?.isUngrouped == true
                      ? "Creates a group with this name and moves these photos into it."
                      : "")
+            }
+            .confirmationDialog("Delete \"\(deletingGroup?.name ?? "")\"?",
+                                isPresented: $showGroupDeleteConfirm, titleVisibility: .visible) {
+                Button("Ungroup (keep photos)") {
+                    if let g = deletingGroup { vm.deleteGroup(g, deletePhotos: false) }
+                }
+                Button("Delete group and photos", role: .destructive) {
+                    if let g = deletingGroup { vm.deleteGroup(g, deletePhotos: true) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("“Ungroup” keeps the photos and moves them to Ungrouped. Deleting moves them to Recently Deleted.")
+            }
+            .confirmationDialog("Empty Recently Deleted?",
+                                isPresented: $showEmptyBinConfirm, titleVisibility: .visible) {
+                Button("Delete All Permanently", role: .destructive) { vm.emptyBin() }
+                Button("Cancel", role: .cancel) {}
             }
             .alert("New group", isPresented: $showGroupAlert) {
                 TextField("Group name", text: $groupNameText)
@@ -88,31 +118,61 @@ struct LibraryTab: View {
 
     private var content: some View {
         ScrollView {
-            LazyVStack(spacing: 14, pinnedViews: [.sectionHeaders]) {
+            LazyVStack(alignment: .leading, spacing: 20) {
                 ForEach(vm.groups) { group in
-                    Section {
-                        if !collapsed.contains(group.id) {
-                            LazyVGrid(columns: columns, spacing: 4) {
-                                ForEach(group.items) { item in
-                                    cell(item, group: group)
-                                }
-                            }
-                            .padding(.horizontal, 4)
-                        }
-                    } header: {
-                        groupHeader(group)
-                    }
+                    groupSection(id: group.id, name: group.name, items: group.items, group: group)
+                }
+                if vm.hasBin {
+                    groupSection(id: LibraryViewModel.recycleBinID, name: "Recently Deleted",
+                                 items: vm.binItems, group: nil)
                 }
             }
+            .padding(.top, 8)
             .padding(.bottom, 90)   // clear the floating tab/selection bar
         }
         .refreshable { vm.load() }
     }
 
-    private func cell(_ item: LibraryItem, group: LibraryGroup) -> some View {
+    @ViewBuilder
+    private func groupSection(id: String, name: String, items: [LibraryItem], group: LibraryGroup?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            header(id: id, name: name, count: items.count, group: group)
+            if !collapsed.contains(id) {
+                LazyVGrid(columns: columns, spacing: 4) {
+                    ForEach(items) { item in cell(item, groupID: id) }
+                }
+            }
+        }
+    }
+
+    // Seamless, Notes-style section header — no background, just text.
+    private func header(id: String, name: String, count: Int, group: LibraryGroup?) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: collapsed.contains(id) ? "chevron.right" : "chevron.down")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            Text(name)
+                .font(.title3.weight(.semibold))
+            Text("\(count)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) { toggleCollapse(id) }
+        }
+        .onLongPressGesture {
+            if let group { startRename(group) }      // normal group: rename / delete
+            else { showEmptyBinConfirm = true }      // recently deleted: empty
+        }
+    }
+
+    private func cell(_ item: LibraryItem, groupID: String) -> some View {
         Button {
             if isSelecting { toggle(item) }
-            else { viewer = ViewerContext(groupID: group.id, startID: item.id) }
+            else { viewer = ViewerContext(groupID: groupID, startID: item.id) }
         } label: {
             LibraryThumbnail(item: item,
                              showBadge: vm.showsRawBadges,
@@ -120,32 +180,6 @@ struct LibraryTab: View {
                              isSelected: selection.contains(item.id))
         }
         .buttonStyle(.plain)
-    }
-
-    private func groupHeader(_ group: LibraryGroup) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: collapsed.contains(group.id) ? "chevron.right" : "chevron.down")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
-            Text(group.name)
-                .font(.headline)
-            Text("\(group.items.count)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Image(systemName: "pencil")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.2)) { toggleCollapse(group.id) }
-        }
-        .onLongPressGesture { startRename(group) }
     }
 
     @ToolbarContentBuilder
@@ -160,30 +194,44 @@ struct LibraryTab: View {
                     else { selection = Set(vm.allItems.map(\.id)) }
                 }
             }
-        } else if !vm.groups.isEmpty {
+        } else if !vm.groups.isEmpty || vm.hasBin {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Select") { isSelecting = true }
             }
         }
     }
 
+    // True when every selected item is in the recycle bin → show Restore / Delete.
+    private var binSelection: Bool {
+        !selection.isEmpty && selection.allSatisfy { vm.binItemIDs.contains($0) }
+    }
+
     private var selectionActionBar: some View {
         HStack(spacing: 22) {
-            Button {
-                let urls = vm.fileURLs(for: selection)
-                if !urls.isEmpty { sharePayload = SharePayload(urls: urls) }
-            } label: {
-                Image(systemName: "square.and.arrow.up").font(.title3)
-            }
-            .disabled(selection.isEmpty)
+            if binSelection {
+                Button {
+                    vm.restore(ids: selection)
+                    exitSelection()
+                } label: {
+                    Image(systemName: "arrow.uturn.backward").font(.title3)
+                }
+            } else {
+                Button {
+                    let urls = vm.fileURLs(for: selection)
+                    if !urls.isEmpty { sharePayload = SharePayload(urls: urls) }
+                } label: {
+                    Image(systemName: "square.and.arrow.up").font(.title3)
+                }
+                .disabled(selection.isEmpty)
 
-            Button {
-                groupNameText = ""
-                showGroupAlert = true
-            } label: {
-                Image(systemName: "folder.badge.plus").font(.title3)
+                Button {
+                    groupNameText = ""
+                    showGroupAlert = true
+                } label: {
+                    Image(systemName: "folder.badge.plus").font(.title3)
+                }
+                .disabled(selection.isEmpty)
             }
-            .disabled(selection.isEmpty)
 
             Spacer()
             Text(selection.isEmpty ? "Select Photos" : "\(selection.count) Selected")
@@ -216,6 +264,7 @@ struct LibraryTab: View {
 
     private func toggleCollapse(_ id: String) {
         if collapsed.contains(id) { collapsed.remove(id) } else { collapsed.insert(id) }
+        UserDefaults.standard.set(Array(collapsed), forKey: "collapsedGroups")
     }
 
     private func startRename(_ group: LibraryGroup) {
@@ -361,27 +410,35 @@ struct PhotoViewer: View {
         }
         .onAppear { index = items.firstIndex { $0.id == startID } ?? 0 }
         .confirmationDialog("Delete this photo?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) { deleteCurrent() }
+            Button(isBin ? "Delete Permanently" : "Delete", role: .destructive) { deleteCurrent() }
             Button("Keep", role: .cancel) {}
         } message: {
-            Text("Removes the DNG and any matching JPEG from this iPhone.")
+            Text(isBin ? "Permanently removes this photo from this iPhone."
+                       : "Moves this photo to Recently Deleted.")
         }
         .sheet(item: $sharePayload) { payload in
             ShareSheet(items: payload.urls)
         }
     }
 
+    private var isBin: Bool { groupID == LibraryViewModel.recycleBinID }
     private var current: LibraryItem? { items.indices.contains(index) ? items[index] : nil }
 
     private var topBar: some View {
         HStack {
             Button("Done") { dismiss() }
             Spacer()
-            Button {
-                if let c = current {
-                    sharePayload = SharePayload(urls: [c.dngURL, c.jpegURL].compactMap { $0 })
-                }
-            } label: { Image(systemName: "square.and.arrow.up") }
+            if isBin {
+                Button {
+                    if let c = current { vm.restore(ids: [c.id]); if items.isEmpty { dismiss() } }
+                } label: { Image(systemName: "arrow.uturn.backward") }
+            } else {
+                Button {
+                    if let c = current {
+                        sharePayload = SharePayload(urls: [c.dngURL, c.jpegURL].compactMap { $0 })
+                    }
+                } label: { Image(systemName: "square.and.arrow.up") }
+            }
             Button(role: .destructive) { showDeleteConfirm = true } label: { Image(systemName: "trash") }
                 .padding(.leading, 16)
         }
@@ -403,7 +460,7 @@ struct PhotoViewer: View {
     private func deleteCurrent() {
         guard let item = current else { return }
         let wasLast = index >= items.count - 1
-        vm.delete(item)
+        if isBin { vm.deleteFromBin(ids: [item.id]) } else { vm.delete(item) }
         if items.isEmpty { dismiss(); return }
         if wasLast { index = items.count - 1 }
     }

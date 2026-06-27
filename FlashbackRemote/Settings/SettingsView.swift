@@ -10,6 +10,7 @@ struct SettingsView: View {
         Form {
             appearanceSection
             saveLocationSection
+            recycleBinSection
             shortcutSection
             editorSection
             firmwareLogSection
@@ -22,6 +23,20 @@ struct SettingsView: View {
                 .listRowBackground(Color.clear)
         }
         .navigationTitle("Settings")
+    }
+
+    private var recycleBinSection: some View {
+        Section {
+            Picker("Keep deleted photos", selection: $settings.recycleRetentionMonths) {
+                Text("1 month").tag(1)
+                Text("3 months").tag(3)
+                Text("6 months").tag(6)
+            }
+        } header: {
+            Text("Recently Deleted")
+        } footer: {
+            Text("Deleted photos move to Recently Deleted and are removed automatically after this long.")
+        }
     }
 
     private var appearanceSection: some View {
@@ -221,6 +236,13 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.2.3", notes: [
+            "Delete a group: long-press its title → Delete Group (keep the photos as Ungrouped, or delete them)",
+            "Recently Deleted recycle bin — restore photos, or let them auto-remove after 1/3/6 months (set in Settings)",
+            "Hold a group title to rename (the pencil icon is gone)",
+            "Collapsed groups stay collapsed between app launches",
+            "Cleaner, seamless section headers"
+        ]),
         Release(version: "1.2.2", notes: [
             "Organise the Library into groups (folders)",
             "Select photos → group them into a named folder",
