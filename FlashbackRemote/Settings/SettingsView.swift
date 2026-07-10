@@ -236,6 +236,12 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.3.0", notes: [
+            "New Fitness-style floating tab bar — the active tab expands with its label",
+            "Roll progress ring on the Camera tab, with battery and signal alongside",
+            "Library photos now sort by the date they were shot, read from the DNG/JPEG itself",
+            "Move selected photos into an existing group, not just a new one",
+        ]),
         Release(version: "1.2.3", notes: [
             "Delete a group: long-press its title → Delete Group (keep the photos as Ungrouped, or delete them)",
             "Recently Deleted recycle bin — restore photos, or let them auto-remove after 1/3/6 months (set in Settings)",

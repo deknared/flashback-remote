@@ -265,19 +265,27 @@ struct CameraTab: View {
         return f.string(from: Date())
     }
 
+    @ViewBuilder
     private func cameraInfoSection(_ camera: DiscoveredCamera) -> some View {
+        if let mfr = camera.manufacturerData {
+            let total = max(vm.rollLength, 1)
+            let used = max(0, total - Int(mfr.mediaRemaining))
+            Section {
+                RollRingView(shotsUsed: min(used, total), rollTotal: total,
+                            batteryPercent: mfr.batteryPercent, rssi: camera.rssi)
+                    .padding(.horizontal, 4)
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
+        }
+
         Section("Camera") {
             LabeledContent("Name", value: camera.name)
-            LabeledContent("Signal") {
-                rssiView(camera.rssi)
-            }
             if let mfr = camera.manufacturerData {
                 LabeledContent("Firmware") {
                     firmwareBadge(version: mfr.firmwareVersion,
                                       status: effectiveStatus(mfr.firmwareVersion))
                 }
-                LabeledContent("Battery", value: "\(mfr.batteryPercent)%")
-                LabeledContent("Shots remaining", value: "\(mfr.mediaRemaining)")
             }
             LabeledContent("Film wound") {
                 Image(systemName: camera.isWound ? "checkmark.circle.fill" : "xmark.circle")

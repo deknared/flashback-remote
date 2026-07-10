@@ -24,6 +24,8 @@
 		AA000025 /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100025 /* LibraryViewModel.swift */; };
 		AA000027 /* One35DNGDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100027 /* One35DNGDecoder.swift */; };
 		AA000026 /* LibraryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100026 /* LibraryTab.swift */; };
+		AA000028 /* EXIFDateReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100028 /* EXIFDateReader.swift */; };
+		AA000029 /* RollRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100029 /* RollRingView.swift */; };
 		AA000011 /* EditorTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100011 /* EditorTab.swift */; };
 		AA000012 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100012 /* SettingsView.swift */; };
 		AA000009 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100009 /* DiagnosticsView.swift */; };
@@ -52,6 +54,8 @@
 		AA100025 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
 		AA100027 /* One35DNGDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = One35DNGDecoder.swift; sourceTree = "<group>"; };
 		AA100026 /* LibraryTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTab.swift; sourceTree = "<group>"; };
+		AA100028 /* EXIFDateReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EXIFDateReader.swift; sourceTree = "<group>"; };
+		AA100029 /* RollRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollRingView.swift; sourceTree = "<group>"; };
 		AA100011 /* EditorTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTab.swift; sourceTree = "<group>"; };
 		AA100012 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA100009 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
@@ -98,6 +102,7 @@
 				AA100025 /* LibraryViewModel.swift */,
 				AA100027 /* One35DNGDecoder.swift */,
 				AA100026 /* LibraryTab.swift */,
+				AA100028 /* EXIFDateReader.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -108,6 +113,7 @@
 				AA100004 /* BLEController.swift */,
 				AA100005 /* CameraViewModel.swift */,
 				AA100006 /* CameraTab.swift */,
+				AA100029 /* RollRingView.swift */,
 			);
 			path = Camera;
 			sourceTree = "<group>";
@@ -274,6 +280,8 @@
 				AA000025 /* LibraryViewModel.swift in Sources */,
 				AA000027 /* One35DNGDecoder.swift in Sources */,
 				AA000026 /* LibraryTab.swift in Sources */,
+				AA000028 /* EXIFDateReader.swift in Sources */,
+				AA000029 /* RollRingView.swift in Sources */,
 				AA000009 /* DiagnosticsView.swift in Sources */,
 				AA000013 /* SettingsStore.swift in Sources */,
 				AA000014 /* ProtocolConfig.swift in Sources */,

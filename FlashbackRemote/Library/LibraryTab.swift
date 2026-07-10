@@ -24,6 +24,7 @@ struct LibraryTab: View {
     @State private var showRenameAlert = false
     @State private var showGroupAlert = false
     @State private var groupNameText = ""
+    @State private var showGroupPicker = false
 
     // Group delete + recycle bin.
     @State private var deletingGroup: LibraryGroup?
@@ -112,6 +113,25 @@ struct LibraryTab: View {
             }
             .sheet(item: $sharePayload) { payload in
                 ShareSheet(items: payload.urls)
+            }
+            .sheet(isPresented: $showGroupPicker) {
+                GroupPickerSheet(
+                    existingGroups: vm.groups.filter { !$0.isUngrouped }.map(\.name),
+                    onPickExisting: { name in
+                        vm.group(ids: selection, intoName: name)
+                        exitSelection()
+                    },
+                    onPickUngrouped: {
+                        vm.moveToUngrouped(ids: selection)
+                        exitSelection()
+                    },
+                    onNewGroup: {
+                        showGroupPicker = false
+                        groupNameText = ""
+                        showGroupAlert = true
+                    }
+                )
+                .presentationDetents([.medium, .large])
             }
         }
     }
@@ -225,8 +245,7 @@ struct LibraryTab: View {
                 .disabled(selection.isEmpty)
 
                 Button {
-                    groupNameText = ""
-                    showGroupAlert = true
+                    showGroupPicker = true
                 } label: {
                     Image(systemName: "folder.badge.plus").font(.title3)
                 }
@@ -397,12 +416,19 @@ struct PhotoViewer: View {
                     topBar
                     Spacer()
                     if let c = current {
-                        Text(c.displayName)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 12).padding(.vertical, 5)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .padding(.bottom, 8)
+                        VStack(spacing: 2) {
+                            Text(c.displayName)
+                                .font(.caption.monospaced())
+                            if let cap = c.captureDate {
+                                Text(cap.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.caption2)
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(.bottom, 8)
                     }
                     filmstrip
                 }
@@ -675,6 +701,54 @@ struct ZoomableImage: View {
 struct SharePayload: Identifiable {
     let id = UUID()
     let urls: [URL]
+}
+
+// MARK: - Move / group picker
+
+struct GroupPickerSheet: View {
+    let existingGroups: [String]
+    let onPickExisting: (String) -> Void
+    let onPickUngrouped: () -> Void
+    let onNewGroup: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Button {
+                        onNewGroup()
+                    } label: {
+                        Label("New Group…", systemImage: "folder.badge.plus")
+                    }
+                }
+                Section("Move to") {
+                    Button {
+                        onPickUngrouped()
+                        dismiss()
+                    } label: {
+                        Label("Ungrouped", systemImage: "tray")
+                    }
+                    ForEach(existingGroups, id: \.self) { name in
+                        Button {
+                            onPickExisting(name)
+                            dismiss()
+                        } label: {
+                            Label(name, systemImage: "folder")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Move to Group")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
 }
 
 struct ShareSheet: UIViewControllerRepresentable {

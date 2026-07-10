@@ -10,13 +10,18 @@ struct LibraryItem: Identifiable, Hashable {
     let displayName: String
     let dngURL: URL?
     let jpegURL: URL?
-    let date: Date
+    let date: Date           // file modification date (transfer time) — sort fallback
+    let captureDate: Date?   // EXIF shot date, when readable
     let sizeBytes: Int
 
     // Prefer the JPEG for thumbnails (fast); fall back to raw-decoding the DNG.
     var thumbnailSourceURL: URL? { jpegURL ?? dngURL }
     var primaryURL: URL? { dngURL ?? jpegURL }
     var isRawOnly: Bool { jpegURL == nil && dngURL != nil }
+
+    // The date to actually sort/display by: when the shot was taken if known,
+    // else falls back to when the file landed on the phone.
+    var sortDate: Date { captureDate ?? date }
 
     var sizeMB: String { String(format: "%.1f MB", Double(sizeBytes) / 1_048_576) }
 }
@@ -113,11 +118,13 @@ final class LibraryViewModel: ObservableObject {
             acc[base] = g
         }
         return acc.map { base, g in
-            LibraryItem(id: groupPrefix.isEmpty ? base : "\(groupPrefix)/\(base)",
+            let captureURL = g.dng ?? g.jpg
+            let captured = captureURL.flatMap { EXIFDateReader.captureDate(for: $0) }
+            return LibraryItem(id: groupPrefix.isEmpty ? base : "\(groupPrefix)/\(base)",
                         displayName: (g.dng ?? g.jpg)?.lastPathComponent ?? base,
-                        dngURL: g.dng, jpegURL: g.jpg, date: g.date, sizeBytes: g.size)
+                        dngURL: g.dng, jpegURL: g.jpg, date: g.date, captureDate: captured, sizeBytes: g.size)
         }
-        .sorted { $0.date > $1.date }
+        .sorted { $0.sortDate > $1.sortDate }
     }
 
     // MARK: Mutations
@@ -148,6 +155,17 @@ final class LibraryViewModel: ObservableObject {
             }
         }
         try? FileManager.default.removeItem(at: group.folderURL)
+        load()
+    }
+
+    /// Move items back to the root (Ungrouped) — not a folder literally named
+    /// "Ungrouped", just files at the top level.
+    func moveToUngrouped(ids: Set<String>) {
+        let root = FlashbackStorage.localFolder
+        for item in allItems where ids.contains(item.id) {
+            moveFiles([item.dngURL, item.jpegURL].compactMap { $0 }, into: root)
+            ThumbnailCache.shared.remove(item.id)
+        }
         load()
     }
 
@@ -267,9 +285,9 @@ final class LibraryViewModel: ObservableObject {
         }
         return acc.map { key, a in
             LibraryItem(id: "bin/\(key)", displayName: a.origName,
-                        dngURL: a.dng, jpegURL: a.jpg, date: a.date, sizeBytes: a.size)
+                        dngURL: a.dng, jpegURL: a.jpg, date: a.date, captureDate: nil, sizeBytes: a.size)
         }
-        .sorted { $0.date > $1.date }
+        .sorted { $0.date > $1.date }   // deletion time, not capture time
     }
 
     private func purgeBin() {
