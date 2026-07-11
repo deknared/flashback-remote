@@ -14,6 +14,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.3.2",
+          "date": "2026-07-11",
+          "localizedDescription": "Slide your finger across the tab bar to scrub between pages, instead of tapping each icon one at a time.",
+          "downloadURL": "https://github.com/deknared/flashback-remote/releases/download/v1.3.2/FlashbackRemote.ipa",
+          "size": 544515,
+          "minOSVersion": "16.0"
+        },
+        {
           "version": "1.3.1",
           "date": "2026-07-11",
           "localizedDescription": "Maintenance release — no functional changes. Re-published to help SideStore pick up the v1.3.0 update on devices where the source was cached.",
