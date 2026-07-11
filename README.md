@@ -72,19 +72,6 @@ All installed copies of the app pick up the change on next launch — no rebuild
 
 ---
 
-## Known unknowns
-
-| Question | Current assumption |
-|----------|-------------------|
-| Does the roll limit persist across power cycles? | Probably resets — run the app before each shoot |
-| Does the official app reset the roll limit? | **Yes (community-confirmed)** — opening the official app resets it to 27. Re-run this app afterwards to re-apply your limit |
-| Does it reset when you eject the roll? | Unknown |
-| Does `filmTypeId: 1` affect the limit? | Unknown — using `1` as safe default |
-| Does the BLE bond survive a camera firmware update? | Unknown — re-pair with official app if needed |
-| Exact camera WiFi SSID format | Assumed `ONE35-XXXX` — app joins any SSID starting with `ONE35` |
-
----
-
 ## Creating a release (for repo owners)
 
 GitHub Actions builds an unsigned IPA on every push. To create a versioned release that SideStore users can install:
