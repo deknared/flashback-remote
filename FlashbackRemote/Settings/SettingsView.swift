@@ -236,6 +236,9 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.3.2", notes: [
+            "Slide your finger across the tab bar to scrub between pages, instead of tapping each icon"
+        ]),
         Release(version: "1.3.1", notes: [
             "Maintenance release — no functional changes; re-published to help SideStore pick up the update"
         ]),
