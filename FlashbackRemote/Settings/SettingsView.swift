@@ -236,6 +236,9 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.3.1", notes: [
+            "Maintenance release — no functional changes; re-published to help SideStore pick up the update"
+        ]),
         Release(version: "1.3.0", notes: [
             "New Fitness-style floating tab bar — the active tab expands with its label",
             "Roll progress ring on the Camera tab, with battery and signal alongside",
