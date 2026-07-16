@@ -528,7 +528,7 @@ struct PageImageView: View {
 
 // A UIHostingController that remembers which array index it's showing, so the
 // data source can answer "before"/"after" without re-deriving it from content.
-private final class IndexedHostingController: UIHostingController<PageImageView> {
+fileprivate final class IndexedHostingController: UIHostingController<PageImageView> {
     var pageIndex: Int = 0
 }
 
