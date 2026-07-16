@@ -236,6 +236,10 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.3.3", notes: [
+            "Fixed stuttery/broken swiping between photos — the viewer was decoding every photo in a roll at once instead of just the one on screen",
+            "A banner now appears when a new version is available, with a shortcut to open SideStore"
+        ]),
         Release(version: "1.3.2", notes: [
             "Slide your finger across the tab bar to scrub between pages, instead of tapping each icon"
         ]),

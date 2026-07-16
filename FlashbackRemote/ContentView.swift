@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var filesViewModel: FilesViewModel
     @EnvironmentObject var settings: SettingsStore
+    @StateObject private var updateChecker = UpdateChecker()
     @State private var selectedTab: Tab = .camera
     @State private var hideTabBar = false
 
@@ -47,6 +48,14 @@ struct ContentView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .overlay(alignment: .top) {
+            if let latest = updateChecker.updateAvailable {
+                UpdateBanner(version: latest) { updateChecker.dismiss() }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: updateChecker.updateAvailable)
+        .task { updateChecker.check() }
         .preferredColorScheme(settings.appearance.colorScheme)
         .onReceive(filesViewModel.$switchToFilesTab) { should in
             if should {

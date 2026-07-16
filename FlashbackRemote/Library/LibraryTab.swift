@@ -406,7 +406,12 @@ struct PhotoViewer: View {
             } else {
                 TabView(selection: $index) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
-                        PageImageView(item: item).tag(i)
+                        // TabView(.page) isn't lazy — every page's view exists at once —
+                        // so we gate the expensive full-res raw decode to the current
+                        // page + its immediate neighbours. Without this, opening a
+                        // 30–90 photo roll fired that many concurrent DNG decodes at
+                        // once, which is what made swiping feel broken.
+                        PageImageView(item: item, isNearCurrent: abs(i - index) <= 1).tag(i)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
@@ -494,7 +499,9 @@ struct PhotoViewer: View {
 
 struct PageImageView: View {
     let item: LibraryItem
+    let isNearCurrent: Bool
     @State private var image: UIImage?
+    @State private var isFullRes = false
 
     var body: some View {
         Group {
@@ -504,15 +511,32 @@ struct PageImageView: View {
                 ProgressView().tint(.white)
             }
         }
+        // Thumbnail is cheap (cached) and safe to load for every page up front —
+        // it's what makes the initial page appear instantly on swipe.
         .task(id: item.id) {
             if image == nil, let thumb = ThumbnailCache.shared.image(for: item.id) {
-                image = thumb   // instant placeholder
+                image = thumb
+            }
+        }
+        // Full-res decode only runs for the current page ± 1. Swiping further
+        // releases the bitmap back down to the thumbnail so memory doesn't grow
+        // unbounded across a whole roll.
+        .task(id: isNearCurrent) {
+            guard isNearCurrent else {
+                if isFullRes, let thumb = ThumbnailCache.shared.image(for: item.id) {
+                    image = thumb
+                    isFullRes = false
+                }
+                return
             }
             guard let url = item.primaryURL else { return }
-            let full = await Task.detached(priority: .userInitiated) {
+            let full = await Task {
                 ImageDecoder.fullImage(url: url)
             }.value
-            if let full { image = full }
+            if let full, isNearCurrent {
+                image = full
+                isFullRes = true
+            }
         }
     }
 }
