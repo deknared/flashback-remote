@@ -14,6 +14,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.3.3",
+          "date": "2026-07-12",
+          "localizedDescription": "Fixed stuttery/broken swiping between photos — the viewer was decoding every photo in a roll at once instead of just the one on screen. A banner now appears when a new version is available, with a shortcut to open SideStore.",
+          "downloadURL": "https://github.com/deknared/flashback-remote/releases/download/v1.3.3/FlashbackRemote.ipa",
+          "size": 559929,
+          "minOSVersion": "16.0"
+        },
+        {
           "version": "1.3.2",
           "date": "2026-07-11",
           "localizedDescription": "Slide your finger across the tab bar to scrub between pages, instead of tapping each icon one at a time.",
