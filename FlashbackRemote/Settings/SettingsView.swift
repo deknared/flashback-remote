@@ -236,6 +236,9 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.3.4", notes: [
+            "Rebuilt the photo viewer on a proper native pager instead of SwiftUI's paging TabView — both swiping the photo and scrubbing the filmstrip should now be smooth, since the two no longer fight each other"
+        ]),
         Release(version: "1.3.3", notes: [
             "Fixed stuttery/broken swiping between photos — the viewer was decoding every photo in a roll at once instead of just the one on screen",
             "A banner now appears when a new version is available, with a shortcut to open SideStore"

@@ -404,18 +404,14 @@ struct PhotoViewer: View {
             if items.isEmpty {
                 Color.clear.onAppear { dismiss() }
             } else {
-                TabView(selection: $index) {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
-                        // TabView(.page) isn't lazy — every page's view exists at once —
-                        // so we gate the expensive full-res raw decode to the current
-                        // page + its immediate neighbours. Without this, opening a
-                        // 30–90 photo roll fired that many concurrent DNG decodes at
-                        // once, which is what made swiping feel broken.
-                        PageImageView(item: item, isNearCurrent: abs(i - index) <= 1).tag(i)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .ignoresSafeArea()
+                // A UIPageViewController, not SwiftUI's TabView(.page): it only ever
+                // instantiates the current page + its two neighbours (real laziness,
+                // not a windowing hack), and jumps between pages instantly when we set
+                // them programmatically (from the filmstrip) instead of animating
+                // through every intermediate page like TabView(selection:) does — that
+                // interpolation was what made scrubbing the filmstrip feel broken.
+                PagedPhotoView(items: items, index: $index)
+                    .ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     topBar
@@ -499,9 +495,7 @@ struct PhotoViewer: View {
 
 struct PageImageView: View {
     let item: LibraryItem
-    let isNearCurrent: Bool
     @State private var image: UIImage?
-    @State private var isFullRes = false
 
     var body: some View {
         Group {
@@ -511,32 +505,111 @@ struct PageImageView: View {
                 ProgressView().tint(.white)
             }
         }
-        // Thumbnail is cheap (cached) and safe to load for every page up front —
-        // it's what makes the initial page appear instantly on swipe.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
         .task(id: item.id) {
             if image == nil, let thumb = ThumbnailCache.shared.image(for: item.id) {
-                image = thumb
-            }
-        }
-        // Full-res decode only runs for the current page ± 1. Swiping further
-        // releases the bitmap back down to the thumbnail so memory doesn't grow
-        // unbounded across a whole roll.
-        .task(id: isNearCurrent) {
-            guard isNearCurrent else {
-                if isFullRes, let thumb = ThumbnailCache.shared.image(for: item.id) {
-                    image = thumb
-                    isFullRes = false
-                }
-                return
+                image = thumb   // instant placeholder
             }
             guard let url = item.primaryURL else { return }
-            let full = await Task {
+            // .detached guarantees this CPU-bound raw decode runs off the main
+            // thread — a plain Task{} here inherits the calling MainActor context
+            // (SwiftUI's .task closures start on the main actor), which silently
+            // blocked the UI during decode and was the real cause of swipe jank.
+            let full = await Task.detached(priority: .userInitiated) {
                 ImageDecoder.fullImage(url: url)
             }.value
-            if let full, isNearCurrent {
-                image = full
-                isFullRes = true
-            }
+            if let full { image = full }
+        }
+    }
+}
+
+// MARK: - Paged photo scroll (UIPageViewController)
+
+// A UIHostingController that remembers which array index it's showing, so the
+// data source can answer "before"/"after" without re-deriving it from content.
+private final class IndexedHostingController: UIHostingController<PageImageView> {
+    var pageIndex: Int = 0
+}
+
+// UIPageViewController wrapper for the full-screen photo pager. Two properties
+// make this behave far better than SwiftUI's TabView(.page) for this use case:
+// it only ever constructs the current controller + one neighbour on each side
+// (true laziness — no windowing hack needed), and a programmatic page change
+// (from the filmstrip) can jump with animated:false instead of interpolating
+// through every intermediate page, which is what made fast filmstrip scrubs
+// feel like they were fighting the main pager.
+struct PagedPhotoView: UIViewControllerRepresentable {
+    let items: [LibraryItem]
+    @Binding var index: Int
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> UIPageViewController {
+        let pvc = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .horizontal)
+        pvc.dataSource = context.coordinator
+        pvc.delegate = context.coordinator
+        pvc.view.backgroundColor = .black
+        if let vc = context.coordinator.controller(for: index) {
+            pvc.setViewControllers([vc], direction: .forward, animated: false)
+            context.coordinator.currentIndex = index
+        }
+        return pvc
+    }
+
+    func updateUIViewController(_ pvc: UIPageViewController, context: Context) {
+        context.coordinator.parent = self
+        let itemsChanged = context.coordinator.lastItemCount != items.count
+        context.coordinator.lastItemCount = items.count
+
+        // Ignore updates that originated from the page controller's own delegate
+        // callback finishing — otherwise we'd immediately re-set the same page.
+        guard context.coordinator.currentIndex != index || itemsChanged else { return }
+        guard let vc = context.coordinator.controller(for: index) else { return }
+        let direction: UIPageViewController.NavigationDirection =
+            index >= context.coordinator.currentIndex ? .forward : .reverse
+        context.coordinator.currentIndex = index
+        pvc.setViewControllers([vc], direction: direction, animated: false)
+    }
+
+    final class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
+        var parent: PagedPhotoView
+        var currentIndex: Int
+        var lastItemCount: Int
+
+        init(_ parent: PagedPhotoView) {
+            self.parent = parent
+            self.currentIndex = parent.index
+            self.lastItemCount = parent.items.count
+        }
+
+        func controller(for idx: Int) -> IndexedHostingController? {
+            guard parent.items.indices.contains(idx) else { return nil }
+            let host = IndexedHostingController(rootView: PageImageView(item: parent.items[idx]))
+            host.pageIndex = idx
+            host.view.backgroundColor = .black
+            return host
+        }
+
+        func pageViewController(_ pageViewController: UIPageViewController,
+                                viewControllerBefore viewController: UIViewController) -> UIViewController? {
+            guard let idx = (viewController as? IndexedHostingController)?.pageIndex else { return nil }
+            return controller(for: idx - 1)
+        }
+
+        func pageViewController(_ pageViewController: UIPageViewController,
+                                viewControllerAfter viewController: UIViewController) -> UIViewController? {
+            guard let idx = (viewController as? IndexedHostingController)?.pageIndex else { return nil }
+            return controller(for: idx + 1)
+        }
+
+        func pageViewController(_ pageViewController: UIPageViewController,
+                                didFinishAnimating finished: Bool,
+                                previousViewControllers: [UIViewController],
+                                transitionCompleted completed: Bool) {
+            guard completed, let vc = pageViewController.viewControllers?.first as? IndexedHostingController else { return }
+            currentIndex = vc.pageIndex
+            parent.index = vc.pageIndex
         }
     }
 }
