@@ -583,7 +583,7 @@ struct PagedPhotoView: UIViewControllerRepresentable {
             self.lastItemCount = parent.items.count
         }
 
-        func controller(for idx: Int) -> IndexedHostingController? {
+        fileprivate func controller(for idx: Int) -> IndexedHostingController? {
             guard parent.items.indices.contains(idx) else { return nil }
             let host = IndexedHostingController(rootView: PageImageView(item: parent.items[idx]))
             host.pageIndex = idx
