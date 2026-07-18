@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var protocol_: ProtocolConfig
+    @EnvironmentObject var updateChecker: UpdateChecker
     @State private var showResetConfirm = false
     @State private var showUUIDSection = false
 
@@ -137,6 +138,17 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section("About") {
             LabeledContent("Version", value: Self.appVersion)
+            HStack {
+                Button("Check for Updates") { updateChecker.checkNow() }
+                Spacer()
+                if let latest = updateChecker.latestVersion {
+                    Text(UpdateChecker.isNewer(latest, than: updateChecker.currentVersion)
+                         ? "v\(latest) available"
+                         : "Up to date")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
             NavigationLink {
                 WhatsNewView()
             } label: {
@@ -236,6 +248,10 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.3.6", notes: [
+            "The update banner now checks every time the app comes to the foreground, not just at launch (it used to miss updates, especially when opened on the camera's internet-less WiFi)",
+            "New \"Check for Updates\" button in Settings → About showing whether you're up to date"
+        ]),
         Release(version: "1.3.5", notes: [
             "Zoomed-in panning no longer swipes to the next photo (native Photos-style zoom)",
             "The photo's date is always shown in the full-screen viewer",

@@ -4,6 +4,7 @@ struct ContentView: View {
     @EnvironmentObject var filesViewModel: FilesViewModel
     @EnvironmentObject var settings: SettingsStore
     @StateObject private var updateChecker = UpdateChecker()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: Tab = .camera
     @State private var hideTabBar = false
 
@@ -56,6 +57,13 @@ struct ContentView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: updateChecker.updateAvailable)
         .task { updateChecker.check() }
+        // Re-check on every return to foreground — a cold-launch-only check
+        // misses updates published while the app sat suspended, and silently
+        // fails when launched on the camera's internet-less WiFi.
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { updateChecker.check() }
+        }
+        .environmentObject(updateChecker)
         .preferredColorScheme(settings.appearance.colorScheme)
         .onReceive(filesViewModel.$switchToFilesTab) { should in
             if should {

@@ -27,6 +27,11 @@ final class UpdateChecker: ObservableObject {
         return latest
     }
 
+    @Published private(set) var lastCheck: Date?
+
+    // Safe to call often (e.g. on every app foregrounding): the fetch is ~8KB,
+    // and failures (like being on the camera's internet-less WiFi) just leave
+    // the previous state — the next foreground retries automatically.
     func check() {
         Task {
             struct Source: Decodable {
@@ -40,7 +45,16 @@ final class UpdateChecker: ObservableObject {
                   let decoded = try? JSONDecoder().decode(Source.self, from: data),
                   let latest = decoded.apps.first?.versions.first?.version else { return }
             latestVersion = latest
+            lastCheck = Date()
         }
+    }
+
+    // Manual check from Settings: also clears any per-version dismissal so the
+    // banner re-appears if an update is available.
+    func checkNow() {
+        dismissedVersion = nil
+        UserDefaults.standard.removeObject(forKey: "dismissedUpdateVersion")
+        check()
     }
 
     func dismiss() {
