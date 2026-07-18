@@ -14,6 +14,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.3.5",
+          "date": "2026-07-19",
+          "localizedDescription": "Library refinements.\n\n• Zoomed-in panning no longer swipes to the next photo (native Photos-style zoom; double-tap zooms to the tapped point)\n• The photo's date is always shown in the full-screen viewer\n• Sort photos by newest, oldest, or name — new sort button in the Library\n• Recently Deleted now shows a trash icon on its header\n• Spaces in group names automatically become hyphens",
+          "downloadURL": "https://github.com/deknared/flashback-remote/releases/download/v1.3.5/FlashbackRemote.ipa",
+          "size": 565558,
+          "minOSVersion": "16.0"
+        },
+        {
           "version": "1.3.4",
           "date": "2026-07-16",
           "localizedDescription": "Rebuilt the photo viewer on a proper native pager (UIPageViewController) instead of SwiftUI's paging TabView. Both swiping the photo directly and scrubbing the filmstrip should now be smooth — they were fighting each other before, with the filmstrip firing a cascade of animated page transitions on every fast scrub.",
