@@ -171,6 +171,11 @@ struct LibraryTab: View {
             Image(systemName: collapsed.contains(id) ? "chevron.right" : "chevron.down")
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
+            if id == LibraryViewModel.recycleBinID {
+                Image(systemName: "trash")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             Text(name)
                 .font(.title3.weight(.semibold))
             Text("\(count)")
@@ -215,7 +220,16 @@ struct LibraryTab: View {
                 }
             }
         } else if !vm.groups.isEmpty || vm.hasBin {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Menu {
+                    Picker("Sort by", selection: $vm.sortOrder) {
+                        ForEach(LibrarySortOrder.allCases, id: \.self) { order in
+                            Text(order.label).tag(order)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                }
                 Button("Select") { isSelecting = true }
             }
         }
@@ -420,11 +434,11 @@ struct PhotoViewer: View {
                         VStack(spacing: 2) {
                             Text(c.displayName)
                                 .font(.caption.monospaced())
-                            if let cap = c.captureDate {
-                                Text(cap.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.caption2)
-                                    .foregroundStyle(.white.opacity(0.7))
-                            }
+                            // EXIF shot date when the file carries one; otherwise the
+                            // file date — so a date is always shown, never blank.
+                            Text((c.captureDate ?? c.date).formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.7))
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12).padding(.vertical, 6)
@@ -748,48 +762,72 @@ struct FilmstripScrubber: UIViewRepresentable {
     }
 }
 
-// MARK: - Pinch/pan zoom
+// MARK: - Pinch/pan zoom (native UIScrollView)
 
-struct ZoomableImage: View {
+// SwiftUI gesture-based zoom fought the UIPageViewController's pan recogniser —
+// panning around a zoomed photo swiped to the next page instead. A native
+// UIScrollView with zooming solves this the way Photos does: while zoomed in,
+// the inner scroll view consumes pans; the pager only takes over at the edges.
+struct ZoomableImage: UIViewRepresentable {
     let image: UIImage
-    @State private var scale: CGFloat = 1
-    @State private var lastScale: CGFloat = 1
-    @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
 
-    var body: some View {
-        Image(uiImage: image)
-            .resizable()
-            .scaledToFit()
-            .scaleEffect(scale)
-            .offset(offset)
-            .gesture(
-                MagnificationGesture()
-                    .onChanged { value in scale = min(max(1, lastScale * value), 6) }
-                    .onEnded { _ in
-                        lastScale = scale
-                        if scale <= 1 { withAnimation(.easeOut(duration: 0.2)) { offset = .zero; lastOffset = .zero } }
-                    }
-            )
-            // Attach the pan gesture ONLY when zoomed in. At 1× there's no drag
-            // gesture at all, so the parent paging TabView gets clean horizontal
-            // swipes (no more getting stuck midway between photos).
-            .applyIf(scale > 1) { view in
-                view.gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            offset = CGSize(width: lastOffset.width + value.translation.width,
-                                            height: lastOffset.height + value.translation.height)
-                        }
-                        .onEnded { _ in lastOffset = offset }
-                )
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let sv = UIScrollView()
+        sv.minimumZoomScale = 1
+        sv.maximumZoomScale = 6
+        sv.showsVerticalScrollIndicator = false
+        sv.showsHorizontalScrollIndicator = false
+        sv.bouncesZoom = true
+        sv.backgroundColor = .black
+        sv.contentInsetAdjustmentBehavior = .never
+        sv.delegate = context.coordinator
+
+        let iv = UIImageView(image: image)
+        iv.contentMode = .scaleAspectFit
+        iv.translatesAutoresizingMaskIntoConstraints = false
+        sv.addSubview(iv)
+        NSLayoutConstraint.activate([
+            iv.leadingAnchor.constraint(equalTo: sv.contentLayoutGuide.leadingAnchor),
+            iv.trailingAnchor.constraint(equalTo: sv.contentLayoutGuide.trailingAnchor),
+            iv.topAnchor.constraint(equalTo: sv.contentLayoutGuide.topAnchor),
+            iv.bottomAnchor.constraint(equalTo: sv.contentLayoutGuide.bottomAnchor),
+            iv.widthAnchor.constraint(equalTo: sv.frameLayoutGuide.widthAnchor),
+            iv.heightAnchor.constraint(equalTo: sv.frameLayoutGuide.heightAnchor)
+        ])
+        context.coordinator.imageView = iv
+
+        let doubleTap = UITapGestureRecognizer(target: context.coordinator,
+                                               action: #selector(Coordinator.doubleTap(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        sv.addGestureRecognizer(doubleTap)
+        return sv
+    }
+
+    func updateUIView(_ sv: UIScrollView, context: Context) {
+        // Swap in the full-res bitmap when it replaces the thumbnail placeholder.
+        if context.coordinator.imageView?.image !== image {
+            context.coordinator.imageView?.image = image
+        }
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        weak var imageView: UIImageView?
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? { imageView }
+
+        @objc func doubleTap(_ gesture: UITapGestureRecognizer) {
+            guard let sv = gesture.view as? UIScrollView else { return }
+            if sv.zoomScale > 1 {
+                sv.setZoomScale(1, animated: true)
+            } else {
+                let point = gesture.location(in: imageView)
+                let size = CGSize(width: sv.bounds.width / 2.5, height: sv.bounds.height / 2.5)
+                sv.zoom(to: CGRect(x: point.x - size.width / 2, y: point.y - size.height / 2,
+                                   width: size.width, height: size.height), animated: true)
             }
-            .onTapGesture(count: 2) {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    if scale > 1 { scale = 1; lastScale = 1; offset = .zero; lastOffset = .zero }
-                    else { scale = 2.5; lastScale = 2.5 }
-                }
-            }
+        }
     }
 }
 
@@ -854,13 +892,4 @@ struct ShareSheet: UIViewControllerRepresentable {
         UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-
-extension View {
-    /// Conditionally apply a modifier. Used to attach the pan gesture only when
-    /// the image is zoomed in.
-    @ViewBuilder
-    func applyIf<T: View>(_ condition: Bool, _ transform: (Self) -> T) -> some View {
-        if condition { transform(self) } else { self }
-    }
 }

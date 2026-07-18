@@ -236,6 +236,13 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.3.5", notes: [
+            "Zoomed-in panning no longer swipes to the next photo (native Photos-style zoom)",
+            "The photo's date is always shown in the full-screen viewer",
+            "Sort photos by newest, oldest, or name — from the new sort button in the Library",
+            "Recently Deleted now shows a trash icon on its header",
+            "Spaces in group names automatically become hyphens"
+        ]),
         Release(version: "1.3.4", notes: [
             "Rebuilt the photo viewer on a proper native pager instead of SwiftUI's paging TabView — both swiping the photo and scrubbing the filmstrip should now be smooth, since the two no longer fight each other"
         ]),

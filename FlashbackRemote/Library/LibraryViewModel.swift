@@ -26,6 +26,29 @@ struct LibraryItem: Identifiable, Hashable {
     var sizeMB: String { String(format: "%.1f MB", Double(sizeBytes) / 1_048_576) }
 }
 
+// How photos are ordered inside every group. One app-wide setting, persisted.
+enum LibrarySortOrder: String, CaseIterable {
+    case newestFirst, oldestFirst, nameAZ, nameZA
+
+    var label: String {
+        switch self {
+        case .newestFirst: return "Newest First"
+        case .oldestFirst: return "Oldest First"
+        case .nameAZ:      return "Name A–Z"
+        case .nameZA:      return "Name Z–A"
+        }
+    }
+
+    func areInOrder(_ a: LibraryItem, _ b: LibraryItem) -> Bool {
+        switch self {
+        case .newestFirst: return a.sortDate > b.sortDate
+        case .oldestFirst: return a.sortDate < b.sortDate
+        case .nameAZ: return a.displayName.localizedStandardCompare(b.displayName) == .orderedAscending
+        case .nameZA: return a.displayName.localizedStandardCompare(b.displayName) == .orderedDescending
+        }
+    }
+}
+
 // A group = a folder. Root-level files are the special "Ungrouped" group;
 // each subfolder under the app folder is a named group.
 struct LibraryGroup: Identifiable {
@@ -41,6 +64,15 @@ final class LibraryViewModel: ObservableObject {
     @Published var groups: [LibraryGroup] = []
     @Published var binItems: [LibraryItem] = []
     @Published var isLoading = false
+
+    @Published var sortOrder: LibrarySortOrder =
+        LibrarySortOrder(rawValue: UserDefaults.standard.string(forKey: "librarySortOrder") ?? "") ?? .newestFirst {
+        didSet {
+            UserDefaults.standard.set(sortOrder.rawValue, forKey: "librarySortOrder")
+            // Re-sort in place — no need to rescan the filesystem.
+            for i in groups.indices { groups[i].items.sort(by: sortOrder.areInOrder) }
+        }
+    }
 
     static let ungroupedID = "__ungrouped__"
     static let recycleBinID = "__recyclebin__"
@@ -124,7 +156,7 @@ final class LibraryViewModel: ObservableObject {
                         displayName: (g.dng ?? g.jpg)?.lastPathComponent ?? base,
                         dngURL: g.dng, jpegURL: g.jpg, date: g.date, captureDate: captured, sizeBytes: g.size)
         }
-        .sorted { $0.sortDate > $1.sortDate }
+        .sorted(by: sortOrder.areInOrder)
     }
 
     // MARK: Mutations
@@ -223,9 +255,12 @@ final class LibraryViewModel: ObservableObject {
     }
 
     private func sanitized(_ raw: String) -> String? {
+        // Spaces become hyphens ("Summer Roll 3" → "Summer-Roll-3") so folder
+        // names stay clean in the Files app; / and : are illegal in file names.
         let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: " ", with: "-")
         return cleaned.isEmpty ? nil : cleaned
     }
 
