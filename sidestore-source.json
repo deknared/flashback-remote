@@ -14,6 +14,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.3.7",
+          "date": "2026-07-19",
+          "localizedDescription": "BLE pairing and WiFi credential fixes.\n\n• Clearer error when the phone isn't paired with the camera (\"Not paired — open the official Flashback app to re-pair\") instead of a cryptic system message\n• Fixed the WiFi network name/password shown in the app sometimes not matching what the camera actually broadcasts — the app now only shows credentials it has confirmed the camera accepted",
+          "downloadURL": "https://github.com/deknared/flashback-remote/releases/download/v1.3.7/FlashbackRemote.ipa",
+          "size": 572927,
+          "minOSVersion": "16.0"
+        },
+        {
           "version": "1.3.6",
           "date": "2026-07-19",
           "localizedDescription": "Update banner fixes.\n\n• The update banner now checks every time the app comes to the foreground, not just at launch (it used to miss updates, especially when opened on the camera's internet-less WiFi)\n• New \"Check for Updates\" button in Settings → About showing whether you're up to date",
