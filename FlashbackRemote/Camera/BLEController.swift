@@ -80,10 +80,21 @@ final class BLEController: NSObject, ObservableObject {
     @Published var diagValues: [String: Data] = [:]
     @Published var diagLog: [String] = []
 
-    // AP credentials we generated and pushed to the camera (shown to the user so
-    // they can join the hotspot in Settings > WiFi).
+    // AP credentials the camera is actually using (shown to the user so they can
+    // join the hotspot in Settings > WiFi). Only ever set from confirmed reality —
+    // never from an unconfirmed write attempt — to avoid showing credentials the
+    // camera silently rejected while it keeps broadcasting its previous config.
     @Published var apSSID: String?
     @Published var apPassword: String?
+
+    // The credentials we're attempting to write this trigger, held privately
+    // until we know they actually took effect (see writeAPSSID/writeAPPassword
+    // and the FB05 read-back reconciliation in onWiFiConfirmed).
+    private var pendingCandidateSSID: String?
+    private var pendingCandidatePassword: String?
+    private var ssidWriteSucceeded = false
+    private var passwordWriteSucceeded = false
+    private var apCredentialWriteSucceeded: Bool { ssidWriteSucceeded && passwordWriteSucceeded }
 
     // Injected overrides from SettingsStore (set before use)
     var uuidOverrides: BLEUUIDOverrides = BLEUUIDOverrides()
@@ -444,13 +455,22 @@ final class BLEController: NSObject, ObservableObject {
         guard peripheral != nil else { return }
         state = .triggeringWiFi
         wifiStatus = .starting
+        ssidWriteSucceeded = false
+        passwordWriteSucceeded = false
 
-        // Reuse the same credentials across launches so iOS auto-reconnects after
-        // the first manual join. Credentials are generated once and stored in
-        // UserDefaults; deleting the app resets them.
+        // Show whatever we last CONFIRMED the camera actually uses, right away —
+        // if the write below fails silently, the user never sees a guess.
+        if let confirmedSSID = UserDefaults.standard.string(forKey: "ap_ssid_confirmed"), !confirmedSSID.isEmpty {
+            apSSID = confirmedSSID
+            apPassword = UserDefaults.standard.string(forKey: "ap_password_confirmed")
+        }
+
+        // Reuse the same candidate across launches so iOS auto-reconnects after
+        // the first manual join. Only promoted to apSSID/apPassword once we
+        // confirm (via write ack + FB05 read-back) the camera actually took it.
         let (ssid, password) = Self.loadOrGenerateAPCredentials()
-        apSSID = ssid
-        apPassword = password
+        pendingCandidateSSID = ssid
+        pendingCandidatePassword = password
 
         writeAPSSID(ssid: ssid, password: password)
     }
@@ -482,10 +502,11 @@ final class BLEController: NSObject, ObservableObject {
             uuid: uuidFB05, label: "SSID FB05", data: Data(ssid.utf8), required: false,
             onSuccess: { [weak self] in
                 self?.diagAppend("FB05 SSID write ✓")
+                self?.ssidWriteSucceeded = true
                 self?.writeAPPassword(password: password)
             },
             onFailure: { [weak self] err in
-                self?.diagAppend("FB05 SSID write ✗: \(err?.localizedDescription ?? "unknown")")
+                self?.diagAppend("FB05 SSID write ✗: \(err?.localizedDescription ?? "unknown") — camera likely keeps its previous network name")
                 self?.writeAPPassword(password: password)
             }
         )
@@ -505,10 +526,11 @@ final class BLEController: NSObject, ObservableObject {
             uuid: uuidFB06, label: "PASSWORD FB06", data: Data(password.utf8), required: false,
             onSuccess: { [weak self] in
                 self?.diagAppend("FB06 password write ✓")
+                self?.passwordWriteSucceeded = true
                 self?.writeWiFiMode()
             },
             onFailure: { [weak self] err in
-                self?.diagAppend("FB06 password write ✗: \(err?.localizedDescription ?? "unknown")")
+                self?.diagAppend("FB06 password write ✗: \(err?.localizedDescription ?? "unknown") — camera likely keeps its previous password")
                 self?.writeWiFiMode()
             }
         )
@@ -597,9 +619,20 @@ final class BLEController: NSObject, ObservableObject {
         log("WiFi confirmed up — switching to Files tab")
         // FilesViewModel observes wifiStatus to switch tabs
 
-        // Read FB05 back to verify our SSID write stuck. If the camera reports
-        // a different (or empty) SSID, that value wins — it's what's actually
-        // being broadcast. Result is handled in didUpdateValueFor.
+        // Only trust the new candidate if BOTH the SSID and password writes
+        // actually acknowledged success. If either failed, apSSID/apPassword
+        // stay as whatever was set at the start of the trigger (last confirmed
+        // good) — never an unconfirmed guess the camera may have rejected.
+        if apCredentialWriteSucceeded, let ssid = pendingCandidateSSID, let pw = pendingCandidatePassword {
+            apSSID = ssid
+            apPassword = pw
+        } else if pendingCandidateSSID != nil {
+            diagAppend("AP credential write did not fully succeed — showing the last confirmed network instead of the new one.")
+        }
+
+        // Read FB05 back for ground truth: it tells us what the camera is
+        // ACTUALLY broadcasting, which may differ from what we just wrote (or
+        // from what we assumed above). Result is reconciled in didUpdateValueFor.
         if let p = peripheral, let ssidChar = characteristics[uuidFB05.uuidString],
            ssidChar.properties.contains(.read) {
             diagAppend("Reading FB05 to verify AP SSID broadcast name…")
@@ -644,6 +677,10 @@ final class BLEController: NSObject, ObservableObject {
         wifiStatus = .off
         apSSID = nil
         apPassword = nil
+        pendingCandidateSSID = nil
+        pendingCandidatePassword = nil
+        ssidWriteSucceeded = false
+        passwordWriteSucceeded = false
         discoveredCameras = []
         peripheralsByID = [:]
         awaitingSelection = false
@@ -855,15 +892,31 @@ extension BLEController: CBPeripheralDelegate {
             } else if uuid == (self.uuidOverrides.wifiStatus.map { CBUUID(string: $0) } ?? uuidFB02) {
                 self.parseWiFiStatusData(value)
             } else if uuid == uuidFB05 {
-                // FB05 read-back after WiFi trigger: the camera tells us the actual
-                // AP broadcast name. It may differ from (or ignore) what we wrote.
+                // FB05 read-back is ground truth: what the camera is ACTUALLY
+                // broadcasting, which may differ from what we wrote (or thought we
+                // wrote). FB06 (password) has no read-back, so we can only trust a
+                // password when the SSID here matches something we've already
+                // confirmed — otherwise the real password is unknown to us.
                 if let ssid = String(data: value, encoding: .utf8), !ssid.isEmpty {
-                    self.diagAppend("FB05 read-back → '\(ssid)' (camera AP name confirmed)")
-                    self.apSSID = ssid      // update to what camera actually reports
+                    self.diagAppend("FB05 read-back → '\(ssid)'")
+                    let defaults = UserDefaults.standard
+                    if ssid == self.pendingCandidateSSID {
+                        self.apSSID = ssid
+                        self.apPassword = self.pendingCandidatePassword
+                        defaults.set(ssid, forKey: "ap_ssid_confirmed")
+                        defaults.set(self.pendingCandidatePassword, forKey: "ap_password_confirmed")
+                        self.diagAppend("AP credentials confirmed and saved.")
+                    } else if ssid == defaults.string(forKey: "ap_ssid_confirmed") {
+                        self.apSSID = ssid
+                        self.apPassword = defaults.string(forKey: "ap_password_confirmed")
+                        self.diagAppend("Camera is using a previously confirmed network.")
+                    } else {
+                        self.apSSID = ssid
+                        self.apPassword = nil
+                        self.diagAppend("Camera is broadcasting '\(ssid)', which we've never set — its password is unknown. Check the official Flashback app if this network doesn't accept the shown credentials.")
+                    }
                 } else {
-                    self.diagAppend("FB05 read-back → empty. AP name may be fixed by firmware — look for any unknown network in WiFi settings.")
-                    // Leave apSSID as the name we generated so the user has something
-                    // to try, but the network may appear under a completely different name.
+                    self.diagAppend("FB05 read-back → empty. Can't verify — showing the last known network.")
                 }
             }
         }
@@ -886,7 +939,21 @@ extension BLEController: CBPeripheralDelegate {
                     return
                 }
 
+                // insufficientAuthentication/insufficientAuthorization mean there's no
+                // valid BLE bond with the camera at all — unlike insufficientEncryption,
+                // a retry can't fix this; only re-pairing can. This used to surface as a
+                // raw system string ("Authorization is insufficient") because the clearer
+                // message lived only in per-write onFailure closures that `required: true`
+                // writes (like the FB00 auth token) never actually reached.
+                let isAuthError = ns.domain == CBATTError.errorDomain
+                    && (ns.code == CBATTError.insufficientAuthentication.rawValue
+                        || ns.code == CBATTError.insufficientAuthorization.rawValue)
+
                 self.pendingWrite = nil
+                if isAuthError {
+                    self.fail("Not paired with this camera.\n\nOpen the official Flashback app, connect to the camera once to re-pair, then come back and retry.")
+                    return
+                }
                 if pending.required {
                     self.fail("WRITE \(pending.label) failed: \(error.localizedDescription)")
                 } else {

@@ -217,43 +217,53 @@ struct FilesTab: View {
             Text("Camera WiFi is ready")
                 .font(.headline)
 
-            if let ssid = ble.apSSID, let pw = ble.apPassword {
-                HStack(alignment: .top, spacing: 16) {
-                    // WiFi QR code — for joining from a *second* device. Tap to copy
-                    // the password when you're on this same phone.
-                    if let qr = makeWiFiQR(ssid: ssid, password: pw) {
-                        qr
-                            .interpolation(.none)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 96, height: 96)
-                            .padding(6)
-                            .background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+            if let ssid = ble.apSSID {
+                if let pw = ble.apPassword {
+                    HStack(alignment: .top, spacing: 16) {
+                        // WiFi QR code — for joining from a *second* device. Tap to
+                        // copy the password when you're on this same phone.
+                        if let qr = makeWiFiQR(ssid: ssid, password: pw) {
+                            qr
+                                .interpolation(.none)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 96, height: 96)
+                                .padding(6)
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            credRow(label: "Network", value: ssid)
+                            credRow(label: "Password", value: pw)
+                        }
                     }
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        credRow(label: "Network", value: ssid)
-                        credRow(label: "Password", value: pw)
+                    // One-device flow: copy the password so it can be pasted in the
+                    // WiFi join sheet. iOS has no public API to deep-link straight to
+                    // WiFi settings, so the user opens Settings manually.
+                    Button {
+                        UIPasteboard.general.string = pw
+                        copiedPassword = true
+                    } label: {
+                        Label(copiedPassword ? "Password Copied" : "Copy Password",
+                              systemImage: copiedPassword ? "checkmark.circle.fill" : "doc.on.doc")
+                            .frame(maxWidth: .infinity)
                     }
-                }
+                    .buttonStyle(.bordered)
 
-                // One-device flow: copy the password so it can be pasted in the
-                // WiFi join sheet. iOS has no public API to deep-link straight to
-                // WiFi settings, so the user opens Settings manually.
-                Button {
-                    UIPasteboard.general.string = pw
-                    copiedPassword = true
-                } label: {
-                    Label(copiedPassword ? "Password Copied" : "Copy Password",
-                          systemImage: copiedPassword ? "checkmark.circle.fill" : "doc.on.doc")
-                        .frame(maxWidth: .infinity)
+                    Text("Open **Settings → WiFi**, select **\(ssid)**, and paste the password.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    // The camera is broadcasting a network we've never set — we
+                    // genuinely don't know its password (FB06 has no read-back).
+                    credRow(label: "Network", value: ssid)
+                    Label("Password unknown — this network wasn't set by this app. Try a previously used password, or re-pair via the official Flashback app.",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
-                .buttonStyle(.bordered)
-
-                Text("Open **Settings → WiFi**, select **\(ssid)**, and paste the password.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Button {

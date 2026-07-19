@@ -248,6 +248,10 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.3.7", notes: [
+            "Clearer error when the phone isn't paired with the camera (\"Not paired — open the official Flashback app to re-pair\") instead of a cryptic system message",
+            "Fixed the WiFi network name/password shown in the app sometimes not matching what the camera actually broadcasts — the app now only shows credentials it has confirmed the camera accepted"
+        ]),
         Release(version: "1.3.6", notes: [
             "The update banner now checks every time the app comes to the foreground, not just at launch (it used to miss updates, especially when opened on the camera's internet-less WiFi)",
             "New \"Check for Updates\" button in Settings → About showing whether you're up to date"
