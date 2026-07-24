@@ -265,22 +265,23 @@ struct CameraTab: View {
         return f.string(from: Date())
     }
 
+    /// Shots used / total for the progress ring. Prefers the camera's own roll
+    /// state (FB21) — it can't drift — and only falls back to inferring from the
+    /// advertisement's mediaRemaining when FB21 isn't readable.
+    private func rollProgress(_ mfr: ManufacturerData) -> (used: Int, total: Int) {
+        if let roll = ble.rollState, roll.length > 0 {
+            return (min(roll.capturedMedia, roll.length), roll.length)
+        }
+        let total = max(vm.rollLength, 1)
+        return (min(max(0, total - Int(mfr.mediaRemaining)), total), total)
+    }
+
     @ViewBuilder
     private func cameraInfoSection(_ camera: DiscoveredCamera) -> some View {
         if let mfr = camera.manufacturerData {
-            // Prefer the camera's own roll state (FB21) — it can't drift. Only fall
-            // back to inferring from the advertisement when FB21 isn't readable.
-            let total: Int
-            let used: Int
-            if let roll = ble.rollState, roll.length > 0 {
-                total = roll.length
-                used = min(roll.capturedMedia, roll.length)
-            } else {
-                total = max(vm.rollLength, 1)
-                used = min(max(0, total - Int(mfr.mediaRemaining)), total)
-            }
+            let progress = rollProgress(mfr)
             Section {
-                RollRingView(shotsUsed: used, rollTotal: total,
+                RollRingView(shotsUsed: progress.used, rollTotal: progress.total,
                             batteryPercent: mfr.batteryPercent, rssi: camera.rssi)
                     .padding(.horizontal, 4)
             }
