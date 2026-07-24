@@ -5,7 +5,7 @@ import CoreImage
 
 // One entry in the Library — a captured frame, which may have a DNG, a JPEG, or
 // both (same basename). Deleting an item removes every file for that basename.
-struct LibraryItem: Identifiable, Hashable {
+struct LibraryItem: Identifiable, Hashable, Sendable {
     let id: String          // group-relative path without extension (unique)
     let displayName: String
     let dngURL: URL?
@@ -27,7 +27,7 @@ struct LibraryItem: Identifiable, Hashable {
 }
 
 // How photos are ordered inside every group. One app-wide setting, persisted.
-enum LibrarySortOrder: String, CaseIterable {
+enum LibrarySortOrder: String, CaseIterable, Sendable {
     case newestFirst, oldestFirst, nameAZ, nameZA
 
     var label: String {
@@ -51,7 +51,7 @@ enum LibrarySortOrder: String, CaseIterable {
 
 // A group = a folder. Root-level files are the special "Ungrouped" group;
 // each subfolder under the app folder is a named group.
-struct LibraryGroup: Identifiable {
+struct LibraryGroup: Identifiable, Sendable {
     let id: String          // ungroupedID for root, else the folder name
     let name: String        // "Ungrouped" or the folder name
     let isUngrouped: Bool
@@ -65,21 +65,48 @@ final class LibraryViewModel: ObservableObject {
     @Published var binItems: [LibraryItem] = []
     @Published var isLoading = false
 
+    /// Default order for every group that hasn't been given its own.
     @Published var sortOrder: LibrarySortOrder =
         LibrarySortOrder(rawValue: UserDefaults.standard.string(forKey: "librarySortOrder") ?? "") ?? .newestFirst {
         didSet {
             UserDefaults.standard.set(sortOrder.rawValue, forKey: "librarySortOrder")
-            // Re-sort in place — no need to rescan the filesystem.
-            for i in groups.indices { groups[i].items.sort(by: sortOrder.areInOrder) }
+            resortAll()
+        }
+    }
+
+    /// Per-group overrides, so one roll can be ordered differently from the rest.
+    @Published private(set) var groupSortOverrides: [String: LibrarySortOrder] =
+        (UserDefaults.standard.dictionary(forKey: "groupSortOverrides") as? [String: String] ?? [:])
+            .compactMapValues { LibrarySortOrder(rawValue: $0) }
+
+    func sortOrder(forGroupID id: String) -> LibrarySortOrder {
+        groupSortOverrides[id] ?? sortOrder
+    }
+
+    /// Passing nil clears the override so the group follows the global default.
+    func setSortOrder(_ order: LibrarySortOrder?, forGroupID id: String) {
+        if let order { groupSortOverrides[id] = order } else { groupSortOverrides.removeValue(forKey: id) }
+        UserDefaults.standard.set(groupSortOverrides.mapValues(\.rawValue), forKey: "groupSortOverrides")
+        resortAll()
+    }
+
+    private func resortAll() {
+        // Re-sort in place — no need to rescan the filesystem.
+        for i in groups.indices {
+            groups[i].items.sort(by: sortOrder(forGroupID: groups[i].id).areInOrder)
         }
     }
 
     static let ungroupedID = "__ungrouped__"
     static let recycleBinID = "__recyclebin__"
 
-    private let imageExts: Set<String> = ["dng", "jpg", "jpeg"]
-    private let binDelimiter = "##"
-    private var binURL: URL { FlashbackStorage.localFolder.appendingPathComponent(".RecycleBin", isDirectory: true) }
+    // static so the off-main scan functions can reach them
+    nonisolated static let imageExts: Set<String> = ["dng", "jpg", "jpeg"]
+    nonisolated static let binDelimiter = "##"
+    nonisolated static var binURL: URL { FlashbackStorage.localFolder.appendingPathComponent(".RecycleBin", isDirectory: true) }
+
+    private var binURL: URL { Self.binURL }
+    private var binDelimiter: String { Self.binDelimiter }
 
     var allItems: [LibraryItem] { groups.flatMap(\.items) }
     var binItemIDs: Set<String> { Set(binItems.map(\.id)) }
@@ -90,10 +117,37 @@ final class LibraryViewModel: ObservableObject {
         return groups.first { $0.id == id }?.items ?? []
     }
 
+    /// Rescan the library folder. The actual filesystem work (directory
+    /// enumeration + per-file EXIF header reads) happens off the main thread —
+    /// it used to run synchronously on the main actor on every tab appearance,
+    /// which visibly hitched once a library grew past a few dozen photos.
     func load() {
+        guard !isLoading else { return }   // coalesce overlapping refreshes
         isLoading = true
-        defer { isLoading = false }
-        purgeBin()
+        let order = sortOrder
+        let overrides = groupSortOverrides
+        let retention = UserDefaults.standard.object(forKey: "recycleRetentionMonths") as? Int ?? 1
+        Task {
+            let snapshot = await Task.detached(priority: .userInitiated) {
+                Self.scan(sortOrder: order, overrides: overrides, retentionMonths: retention)
+            }.value
+            self.groups = snapshot.groups
+            self.binItems = snapshot.bin
+            self.isLoading = false
+        }
+    }
+
+    struct Snapshot: Sendable {
+        let groups: [LibraryGroup]
+        let bin: [LibraryItem]
+    }
+
+    // nonisolated so it can run off the main actor. Everything it touches is
+    // either passed in or read fresh from the filesystem.
+    nonisolated private static func scan(sortOrder: LibrarySortOrder,
+                                         overrides: [String: LibrarySortOrder],
+                                         retentionMonths: Int) -> Snapshot {
+        purgeBin(retentionMonths: retentionMonths)
         let root = FlashbackStorage.localFolder
         let fm = FileManager.default
         try? fm.createDirectory(at: root, withIntermediateDirectories: true)
@@ -101,9 +155,7 @@ final class LibraryViewModel: ObservableObject {
         guard let entries = try? fm.contentsOfDirectory(at: root,
                                                         includingPropertiesForKeys: keys,
                                                         options: [.skipsHiddenFiles]) else {
-            groups = []
-            binItems = loadBin()
-            return
+            return Snapshot(groups: [], bin: loadBin())
         }
 
         var rootFiles: [URL] = []
@@ -115,30 +167,33 @@ final class LibraryViewModel: ObservableObject {
 
         var result: [LibraryGroup] = []
 
-        let ungrouped = buildItems(from: rootFiles, groupPrefix: "")
+        let ungrouped = buildItems(from: rootFiles, groupPrefix: "",
+                                   sortOrder: overrides[ungroupedID] ?? sortOrder)
         if !ungrouped.isEmpty {
-            result.append(LibraryGroup(id: Self.ungroupedID, name: "Ungrouped",
+            result.append(LibraryGroup(id: ungroupedID, name: "Ungrouped",
                                        isUngrouped: true, folderURL: root, items: ungrouped))
         }
 
         for dir in subdirs.sorted(by: { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }) {
             let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])) ?? []
-            let items = buildItems(from: files, groupPrefix: dir.lastPathComponent)
-            result.append(LibraryGroup(id: dir.lastPathComponent, name: dir.lastPathComponent,
+            let name = dir.lastPathComponent
+            let items = buildItems(from: files, groupPrefix: name,
+                                   sortOrder: overrides[name] ?? sortOrder)
+            result.append(LibraryGroup(id: name, name: name,
                                        isUngrouped: false, folderURL: dir, items: items))
         }
 
-        groups = result
-        binItems = loadBin()
+        return Snapshot(groups: result, bin: loadBin())
     }
 
-    private func buildItems(from urls: [URL], groupPrefix: String) -> [LibraryItem] {
+    nonisolated private static func buildItems(from urls: [URL], groupPrefix: String,
+                                               sortOrder: LibrarySortOrder) -> [LibraryItem] {
         struct Acc { var dng: URL?; var jpg: URL?; var date: Date; var size: Int }
         var acc: [String: Acc] = [:]
         let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
         for url in urls {
             let ext = url.pathExtension.lowercased()
-            guard imageExts.contains(ext) else { continue }
+            guard Self.imageExts.contains(ext) else { continue }
             let base = url.deletingPathExtension().lastPathComponent
             let rv = try? url.resourceValues(forKeys: keys)
             let date = rv?.contentModificationDate ?? .distantPast
@@ -151,7 +206,9 @@ final class LibraryViewModel: ObservableObject {
         }
         return acc.map { base, g in
             let captureURL = g.dng ?? g.jpg
-            let captured = captureURL.flatMap { EXIFDateReader.captureDate(for: $0) }
+            // Cached by path+mtime+size, so each file's EXIF header is only ever
+            // read once instead of on every single library refresh.
+            let captured = captureURL.flatMap { CaptureDateCache.shared.date(for: $0, mtime: g.date, size: g.size) }
             return LibraryItem(id: groupPrefix.isEmpty ? base : "\(groupPrefix)/\(base)",
                         displayName: (g.dng ?? g.jpg)?.lastPathComponent ?? base,
                         dngURL: g.dng, jpegURL: g.jpg, date: g.date, captureDate: captured, sizeBytes: g.size)
@@ -257,11 +314,21 @@ final class LibraryViewModel: ObservableObject {
     private func sanitized(_ raw: String) -> String? {
         // Spaces become hyphens ("Summer Roll 3" → "Summer-Roll-3") so folder
         // names stay clean in the Files app; / and : are illegal in file names.
-        let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
             .replacingOccurrences(of: " ", with: "-")
-        return cleaned.isEmpty ? nil : cleaned
+        // A leading dot would make the folder hidden — the Library skips hidden
+        // entries, so the group would silently vanish along with its photos.
+        while cleaned.hasPrefix(".") { cleaned.removeFirst() }
+        guard !cleaned.isEmpty else { return nil }
+        // "Ungrouped" is the display name of the virtual root group. A real
+        // folder by that name would render as a second, confusingly identical
+        // section that behaves differently for move/rename.
+        if cleaned.compare("Ungrouped", options: .caseInsensitive) == .orderedSame {
+            cleaned = "Ungrouped-1"
+        }
+        return cleaned
     }
 
     func fileURLs(for ids: Set<String>) -> [URL] {
@@ -298,14 +365,14 @@ final class LibraryViewModel: ObservableObject {
         return parent.path == FlashbackStorage.localFolder.path ? "" : parent.lastPathComponent
     }
 
-    private func loadBin() -> [LibraryItem] {
+    nonisolated private static func loadBin() -> [LibraryItem] {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: binURL, includingPropertiesForKeys: [.fileSizeKey]) else { return [] }
         struct Acc { var dng: URL?; var jpg: URL?; var size: Int; var date: Date; var origName: String }
         var acc: [String: Acc] = [:]
         for url in files {
             let ext = url.pathExtension.lowercased()
-            guard imageExts.contains(ext) else { continue }
+            guard Self.imageExts.contains(ext) else { continue }
             let parts = url.lastPathComponent.components(separatedBy: binDelimiter)
             guard parts.count >= 3, let ms = Double(parts[0]) else { continue }
             let group = parts[1]
@@ -325,11 +392,10 @@ final class LibraryViewModel: ObservableObject {
         .sorted { $0.date > $1.date }   // deletion time, not capture time
     }
 
-    private func purgeBin() {
+    nonisolated private static func purgeBin(retentionMonths: Int) {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: binURL, includingPropertiesForKeys: nil) else { return }
-        let months = UserDefaults.standard.object(forKey: "recycleRetentionMonths") as? Int ?? 1
-        let cutoff = Date().addingTimeInterval(-Double(months) * 30 * 24 * 3600)
+        let cutoff = Date().addingTimeInterval(-Double(retentionMonths) * 30 * 24 * 3600)
         for url in files {
             let parts = url.lastPathComponent.components(separatedBy: binDelimiter)
             if let s = parts.first, let ms = Double(s), Date(timeIntervalSince1970: ms) < cutoff {
@@ -372,12 +438,59 @@ final class LibraryViewModel: ObservableObject {
     }
 }
 
+// MARK: - Capture date cache
+
+// EXIF reads are cheap individually but add up across a whole library, and the
+// answer never changes for a given file. Keyed by path+mtime+size so an edited
+// or replaced file is re-read automatically. Thread-safe: the library scan runs
+// off the main actor.
+final class CaptureDateCache: @unchecked Sendable {
+    static let shared = CaptureDateCache()
+    private var entries: [String: Date?] = [:]
+    private let lock = NSLock()
+    private let defaultsKey = "captureDateCache"
+
+    init() {
+        if let raw = UserDefaults.standard.dictionary(forKey: defaultsKey) as? [String: Double] {
+            for (k, v) in raw { entries[k] = v == 0 ? Date?.none : Date(timeIntervalSince1970: v) }
+        }
+    }
+
+    func date(for url: URL, mtime: Date, size: Int) -> Date? {
+        let key = "\(url.path)|\(Int(mtime.timeIntervalSince1970))|\(size)"
+        lock.lock()
+        if let hit = entries[key] { lock.unlock(); return hit }
+        lock.unlock()
+
+        let value = EXIFDateReader.captureDate(for: url)
+
+        lock.lock()
+        entries[key] = value
+        // Keep the persisted map from growing without bound across many rolls.
+        if entries.count > 5000 { entries.removeAll() }
+        let snapshot = entries
+        lock.unlock()
+        persist(snapshot)
+        return value
+    }
+
+    private func persist(_ snapshot: [String: Date?]) {
+        // 0 encodes "no EXIF date" so negative results are cached too.
+        let encoded = snapshot.mapValues { $0?.timeIntervalSince1970 ?? 0 }
+        UserDefaults.standard.set(encoded, forKey: defaultsKey)
+    }
+}
+
 // MARK: - Thumbnail cache + decoding
 
 final class ThumbnailCache {
     static let shared = ThumbnailCache()
     private let cache = NSCache<NSString, UIImage>()
     private let dir: URL
+    // Rendered thumbnails are ~20-60KB each; without a cap the on-disk cache
+    // grew forever as photos came and went.
+    private let maxDiskBytes = 200 * 1024 * 1024
+    private var writesSinceSweep = 0
 
     init() {
         dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -388,8 +501,11 @@ final class ThumbnailCache {
     func image(for key: String) -> UIImage? {
         if let mem = cache.object(forKey: key as NSString) { return mem }
         // Fall back to the on-disk render so re-launching the Library is instant.
-        if let data = try? Data(contentsOf: fileURL(key)), let img = UIImage(data: data) {
+        let url = fileURL(key)
+        if let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
             cache.setObject(img, forKey: key as NSString)
+            // Touch for LRU so frequently-viewed thumbs survive eviction.
+            try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
             return img
         }
         return nil
@@ -400,6 +516,12 @@ final class ThumbnailCache {
         if let data = image.jpegData(compressionQuality: 0.8) {
             try? data.write(to: fileURL(key))
         }
+        writesSinceSweep += 1
+        if writesSinceSweep >= 50 {
+            writesSinceSweep = 0
+            let dir = self.dir, cap = self.maxDiskBytes
+            Task.detached(priority: .background) { Self.sweep(dir: dir, maxBytes: cap) }
+        }
     }
 
     func remove(_ key: String) {
@@ -409,6 +531,27 @@ final class ThumbnailCache {
 
     private func fileURL(_ key: String) -> URL {
         dir.appendingPathComponent(key.replacingOccurrences(of: "/", with: "_") + ".jpg")
+    }
+
+    /// Evict least-recently-used thumbnails until the folder is under the cap.
+    nonisolated private static func sweep(dir: URL, maxBytes: Int) {
+        let fm = FileManager.default
+        let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey]
+        guard let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: keys) else { return }
+        var entries: [(url: URL, size: Int, date: Date)] = []
+        var total = 0
+        for f in files {
+            guard let rv = try? f.resourceValues(forKeys: Set(keys)) else { continue }
+            let size = rv.fileSize ?? 0
+            entries.append((f, size, rv.contentModificationDate ?? .distantPast))
+            total += size
+        }
+        guard total > maxBytes else { return }
+        for entry in entries.sorted(by: { $0.date < $1.date }) {   // oldest first
+            try? fm.removeItem(at: entry.url)
+            total -= entry.size
+            if total <= maxBytes { break }
+        }
     }
 }
 

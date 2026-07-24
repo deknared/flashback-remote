@@ -38,9 +38,27 @@ struct FlashbackRemoteApp: App {
                         settingsStore.recordFirmwareVersion(version)
                     }
                 }
+                // Keep the controller's UUID overrides in sync with Settings. Without
+                // this the whole "UUID Overrides (Advanced)" section was inert — values
+                // persisted to UserDefaults but never reached BLEController.
+                .onReceive(settingsStore.$overrideServiceUUID.dropFirst()) { _ in syncUUIDOverrides() }
+                .onReceive(settingsStore.$overrideFB00.dropFirst()) { _ in syncUUIDOverrides() }
+                .onReceive(settingsStore.$overrideFB20.dropFirst()) { _ in syncUUIDOverrides() }
+                .onReceive(settingsStore.$overrideFB01.dropFirst()) { _ in syncUUIDOverrides() }
+                .onReceive(settingsStore.$overrideFB04.dropFirst()) { _ in syncUUIDOverrides() }
+                .onReceive(settingsStore.$overrideFB02.dropFirst()) { _ in syncUUIDOverrides() }
+                .onReceive(settingsStore.$overrideFB10.dropFirst()) { _ in syncUUIDOverrides() }
+                .onReceive(settingsStore.$overrideFB05.dropFirst()) { _ in syncUUIDOverrides() }
+                .onReceive(settingsStore.$overrideFB06.dropFirst()) { _ in syncUUIDOverrides() }
                 .task {
                     protocolConfig.loadIfNeeded()
+                    syncUUIDOverrides()          // apply persisted overrides at launch
+                    Notifier.requestAuthorization()
                 }
         }
+    }
+
+    private func syncUUIDOverrides() {
+        bleController.uuidOverrides = settingsStore.bleUUIDOverrides
     }
 }

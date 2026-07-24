@@ -76,6 +76,10 @@ final class BLEController: NSObject, ObservableObject {
     enum SelfTestState: Equatable { case idle, running, passed(String), failed(String) }
     @Published var selfTest: SelfTestState = .idle
 
+    // The camera's own roll state (from FB21), when readable — authoritative for
+    // the progress ring instead of inferring shots-used from the advertisement.
+    @Published var rollState: RollState?
+
     // Diagnostics: last raw value seen for every characteristic UUID
     @Published var diagValues: [String: Data] = [:]
     @Published var diagLog: [String] = []
@@ -98,6 +102,24 @@ final class BLEController: NSObject, ObservableObject {
 
     // Injected overrides from SettingsStore (set before use)
     var uuidOverrides: BLEUUIDOverrides = BLEUUIDOverrides()
+
+    // MARK: Resolved UUIDs
+    // Every UUID the controller uses goes through these, so an override applies
+    // everywhere rather than at whichever call sites happened to remember to
+    // check. Previously serviceUUID and auth were hardcoded at 6 call sites,
+    // making those two override fields silently inert.
+    private func resolved(_ override: String?, _ fallback: CBUUID) -> CBUUID {
+        guard let override, !override.trimmingCharacters(in: .whitespaces).isEmpty else { return fallback }
+        return CBUUID(string: override)
+    }
+    private var serviceUUID: CBUUID { resolved(uuidOverrides.serviceUUID, flashbackServiceUUID) }
+    private var authUUID: CBUUID { resolved(uuidOverrides.auth, uuidFB00) }
+    private var wifiModeUUID: CBUUID { resolved(uuidOverrides.wifiMode, uuidFB01) }
+    private var wifiStatusUUID: CBUUID { resolved(uuidOverrides.wifiStatus, uuidFB02) }
+    private var wifiTriggerUUID: CBUUID { resolved(uuidOverrides.wifiTrigger, uuidFB04) }
+    private var apSSIDUUID: CBUUID { resolved(uuidOverrides.apSSID, uuidFB05) }
+    private var apPasswordUUID: CBUUID { resolved(uuidOverrides.apPassword, uuidFB06) }
+    private var isWoundUUID: CBUUID { resolved(uuidOverrides.isWound, uuidFB10) }
 
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
@@ -156,8 +178,12 @@ final class BLEController: NSObject, ObservableObject {
         case .connected:
             // Re-read wound status and signal strength without disconnecting
             guard let p = peripheral else { return }
-            if let woundChar = characteristics[uuidFB10.uuidString] {
+            if let woundChar = characteristics[isWoundUUID.uuidString] {
                 p.readValue(for: woundChar)
+            }
+            // Also refresh roll state (FB21) so the progress ring stays accurate.
+            if let rollChar = characteristics[uuidFB21.uuidString] {
+                p.readValue(for: rollChar)
             }
             p.readRSSI()
         default:
@@ -210,6 +236,36 @@ final class BLEController: NSObject, ObservableObject {
         resetState()
     }
 
+    // MARK: - Authentication
+
+    /// Writes the user token to the auth characteristic to establish the encrypted
+    /// link. Every flow that needs an authenticated connection (roll write, WiFi
+    /// trigger, self-test, diagnostics) routes through here — previously each
+    /// hand-rolled the same guard + token + PendingWrite, so a fix in one place
+    /// silently missed the other three.
+    /// - Returns: `false` if it couldn't even begin (no peripheral / no auth char),
+    ///   in which case `onUnavailable` has already been given the reason.
+    @discardableResult
+    private func authenticate(label: String,
+                              onUnavailable: (String) -> Void,
+                              onSuccess: @escaping () -> Void,
+                              onFailure: @escaping (Error?) -> Void) -> Bool {
+        guard let peripheral, let authChar = characteristics[authUUID.uuidString] else {
+            onUnavailable("Auth characteristic (\(authUUID.uuidString)) not found — connect first")
+            return false
+        }
+        let token = tokenData()
+        log("WRITE \(label) hex=\(token.hexString)")
+        state = .authenticating
+        pendingWrite = PendingWrite(
+            uuid: authUUID, label: label, data: token, required: true,
+            onSuccess: onSuccess,
+            onFailure: onFailure
+        )
+        peripheral.writeValue(token, for: authChar, type: .withResponse)
+        return true
+    }
+
     // MARK: - Compatibility Self-Test
 
     /// Non-destructive check that this firmware still speaks the protocol we expect:
@@ -220,13 +276,9 @@ final class BLEController: NSObject, ObservableObject {
             selfTest = .failed("Connect to the camera first")
             return
         }
-        guard let peripheral, let authChar = characteristics[uuidFB00.uuidString] else {
-            selfTest = .failed("FB00 (auth) characteristic missing")
-            return
-        }
-        let required = [uuidFB00, uuidFB01, uuidFB04, uuidFB02, uuidFB10]
+        let required = [authUUID, wifiModeUUID, wifiTriggerUUID, wifiStatusUUID, isWoundUUID]
         let missing = required.filter { characteristics[$0.uuidString] == nil }
-        let hasRoll = [uuidFB20, uuidFB21, uuidFB22, uuidFB23].contains { characteristics[$0.uuidString] != nil }
+        let hasRoll = resolveRollCandidates().isEmpty == false
         guard missing.isEmpty else {
             selfTest = .failed("Missing: \(missing.map { $0.uuidString }.joined(separator: ", "))")
             return
@@ -237,17 +289,18 @@ final class BLEController: NSObject, ObservableObject {
         }
 
         selfTest = .running
-        let token = tokenData()
-        pendingWrite = PendingWrite(
-            uuid: uuidFB00, label: "SELFTEST AUTH FB00", data: token, required: true,
+        authenticate(
+            label: "SELFTEST AUTH",
+            onUnavailable: { [weak self] reason in self?.selfTest = .failed(reason) },
             onSuccess: { [weak self] in
                 self?.selfTest = .passed("All characteristics present, auth handshake OK")
+                self?.state = .connected
             },
             onFailure: { [weak self] error in
                 self?.selfTest = .failed("Auth failed: \(error?.localizedDescription ?? "unknown")")
+                self?.state = .connected
             }
         )
-        peripheral.writeValue(token, for: authChar, type: .withResponse)
     }
 
     // MARK: - Diagnostics
@@ -274,15 +327,9 @@ final class BLEController: NSObject, ObservableObject {
     /// This is the key diagnostic: encrypted characteristics (SSID/password/status)
     /// only return real data after auth.
     func diagAuthThenReadAll() {
-        guard let peripheral, let authChar = characteristics[uuidFB00.uuidString] else {
-            diagAppend("No camera connected / FB00 missing")
-            return
-        }
-        let token = tokenData()
-        diagAppend("Auth: WRITE FB00 \(token.hexString)")
-        state = .authenticating
-        pendingWrite = PendingWrite(
-            uuid: uuidFB00, label: "DIAG AUTH FB00", data: token, required: true,
+        authenticate(
+            label: "DIAG AUTH",
+            onUnavailable: { [weak self] reason in self?.diagAppend(reason) },
             onSuccess: { [weak self] in
                 self?.diagAppend("Auth ok — link encrypted")
                 self?.state = .connected
@@ -293,7 +340,6 @@ final class BLEController: NSObject, ObservableObject {
                 self?.state = .connected
             }
         )
-        peripheral.writeValue(token, for: authChar, type: .withResponse)
     }
 
     /// Full WiFi trigger (auth → FB01 AP mode → FB04 start), then read everything
@@ -350,11 +396,6 @@ final class BLEController: NSObject, ObservableObject {
     // MARK: - Roll Write Flow
 
     private func beginWriteRoll() {
-        guard let peripheral, let authChar = characteristics[uuidFB00.uuidString] else {
-            fail("Characteristics not yet discovered — connect first")
-            return
-        }
-
         rollCandidatesRemaining = resolveRollCandidates()
         rollWriteSucceeded = false
 
@@ -363,27 +404,24 @@ final class BLEController: NSObject, ObservableObject {
             return
         }
 
-        let token = tokenData()
-        let label = "USER_TOKEN FB00"
-        log("WRITE \(label) hex=\(token.hexString)")
-        state = .authenticating
-
-        pendingWrite = PendingWrite(
-            uuid: uuidFB00, label: label, data: token, required: true,
+        // Auth errors are turned into the clear "not paired" message centrally in
+        // didWriteValueFor, so onFailure here only handles other write failures.
+        authenticate(
+            label: "USER_TOKEN",
+            onUnavailable: { [weak self] reason in self?.fail(reason) },
             onSuccess: { [weak self] in
-                self?.log("WRITE \(label) ok — encrypted link established")
+                self?.log("Auth ok — encrypted link established")
                 self?.state = .writingRoll
                 self?.runNextRollStep()
             },
             onFailure: { [weak self] error in
-                self?.fail("Auth failed: \(error?.localizedDescription ?? "unknown")\n\nOpen the official Flashback app, connect to the camera, then retry.")
+                self?.fail("Auth failed: \(error?.localizedDescription ?? "unknown")")
             }
         )
-        peripheral.writeValue(token, for: authChar, type: .withResponse)
     }
 
     private func resolveRollCandidates() -> [CBUUID] {
-        let primary = uuidOverrides.rollPrimary.map { CBUUID(string: $0) } ?? uuidFB20
+        let primary = resolved(uuidOverrides.rollPrimary, uuidFB20)
         let fallbacks = uuidOverrides.rollFallbacks?.map { CBUUID(string: $0) }
             ?? [uuidFB21, uuidFB22, uuidFB23]
 
@@ -428,25 +466,17 @@ final class BLEController: NSObject, ObservableObject {
     // MARK: - WiFi-only Auth
 
     private func beginAuthForWiFi() {
-        guard let peripheral, let authChar = characteristics[uuidFB00.uuidString] else {
-            fail("Characteristics not yet discovered — connect first")
-            return
-        }
-        let token = tokenData()
-        let label = "USER_TOKEN FB00"
-        log("WRITE \(label) hex=\(token.hexString)")
-        state = .authenticating
-        pendingWrite = PendingWrite(
-            uuid: uuidFB00, label: label, data: token, required: true,
+        authenticate(
+            label: "USER_TOKEN",
+            onUnavailable: { [weak self] reason in self?.fail(reason) },
             onSuccess: { [weak self] in
-                self?.log("WRITE \(label) ok — encrypted link established")
+                self?.log("Auth ok — encrypted link established")
                 self?.beginWiFiTrigger()
             },
             onFailure: { [weak self] error in
-                self?.fail("Auth failed: \(error?.localizedDescription ?? "unknown")\n\nOpen the official Flashback app, connect to the camera, then retry.")
+                self?.fail("Auth failed: \(error?.localizedDescription ?? "unknown")")
             }
         )
-        peripheral.writeValue(token, for: authChar, type: .withResponse)
     }
 
     // MARK: - WiFi Trigger
@@ -490,7 +520,7 @@ final class BLEController: NSObject, ObservableObject {
     }
 
     private func writeAPSSID(ssid: String, password: String) {
-        guard let peripheral, let ssidChar = characteristics[uuidFB05.uuidString] else {
+        guard let peripheral, let ssidChar = characteristics[apSSIDUUID.uuidString] else {
             diagAppend("FB05 not found — skipping SSID write")
             writeWiFiMode()
             return
@@ -514,7 +544,7 @@ final class BLEController: NSObject, ObservableObject {
     }
 
     private func writeAPPassword(password: String) {
-        guard let peripheral, let pwChar = characteristics[uuidFB06.uuidString] else {
+        guard let peripheral, let pwChar = characteristics[apPasswordUUID.uuidString] else {
             diagAppend("FB06 not found — skipping password write")
             writeWiFiMode()
             return
@@ -539,7 +569,7 @@ final class BLEController: NSObject, ObservableObject {
 
     private func writeWiFiMode() {
         guard let peripheral else { return }
-        let modeUUID = uuidOverrides.wifiMode.map { CBUUID(string: $0) } ?? uuidFB01
+        let modeUUID = wifiModeUUID
         guard let modeChar = characteristics[modeUUID.uuidString] else {
             fail("WIFIMODE characteristic (FB01) not found")
             return
@@ -563,7 +593,7 @@ final class BLEController: NSObject, ObservableObject {
 
     private func writeFB04() {
         guard let peripheral else { return }
-        let triggerUUID = uuidOverrides.wifiTrigger.map { CBUUID(string: $0) } ?? uuidFB04
+        let triggerUUID = wifiTriggerUUID
         guard let triggerChar = characteristics[triggerUUID.uuidString] else {
             fail("CONNECT characteristic (FB04) not found")
             return
@@ -582,7 +612,7 @@ final class BLEController: NSObject, ObservableObject {
 
     private func readWiFiStatus() {
         guard let peripheral else { return }
-        let statusUUID = uuidOverrides.wifiStatus.map { CBUUID(string: $0) } ?? uuidFB02
+        let statusUUID = wifiStatusUUID
         guard let statusChar = characteristics[statusUUID.uuidString] else {
             // Can't confirm, but proceed anyway — the WiFi trigger was sent
             wifiStatus = .up(ip: "192.168.4.1")
@@ -633,7 +663,7 @@ final class BLEController: NSObject, ObservableObject {
         // Read FB05 back for ground truth: it tells us what the camera is
         // ACTUALLY broadcasting, which may differ from what we just wrote (or
         // from what we assumed above). Result is reconciled in didUpdateValueFor.
-        if let p = peripheral, let ssidChar = characteristics[uuidFB05.uuidString],
+        if let p = peripheral, let ssidChar = characteristics[apSSIDUUID.uuidString],
            ssidChar.properties.contains(.read) {
             diagAppend("Reading FB05 to verify AP SSID broadcast name…")
             p.readValue(for: ssidChar)
@@ -685,6 +715,7 @@ final class BLEController: NSObject, ObservableObject {
         peripheralsByID = [:]
         awaitingSelection = false
         selfTest = .idle
+        rollState = nil
         discoverySettleTimer?.cancel()
     }
 
@@ -802,7 +833,7 @@ extension BLEController: CBCentralManagerDelegate {
         Task { @MainActor in
             self.log("Connected. Discovering services…")
             self.state = .discoveringServices
-            peripheral.discoverServices([flashbackServiceUUID])
+            peripheral.discoverServices([serviceUUID])
         }
     }
 
@@ -838,7 +869,7 @@ extension BLEController: CBPeripheralDelegate {
 
     nonisolated func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         Task { @MainActor in
-            guard let service = peripheral.services?.first(where: { $0.uuid == flashbackServiceUUID }) else {
+            guard let service = peripheral.services?.first(where: { $0.uuid == self.serviceUUID }) else {
                 self.fail("Flashback service not found — is the camera wound?")
                 return
             }
@@ -858,12 +889,19 @@ extension BLEController: CBPeripheralDelegate {
             }
 
             // Read IS_WOUND (FB10) and subscribe to changes — readable without encryption
-            let woundUUID = self.uuidOverrides.isWound.map { CBUUID(string: $0) } ?? uuidFB10
+            let woundUUID = self.isWoundUUID
             if let woundChar = self.characteristics[woundUUID.uuidString] {
                 peripheral.readValue(for: woundChar)
                 if woundChar.properties.contains(.notify) {
                     peripheral.setNotifyValue(true, for: woundChar)
                 }
+            }
+
+            // FB21 is readable without auth and carries the real roll state
+            // (length + captured_media) for an accurate progress ring.
+            if let rollChar = self.characteristics[uuidFB21.uuidString],
+               rollChar.properties.contains(.read) {
+                peripheral.readValue(for: rollChar)
             }
 
             self.state = .connected
@@ -885,13 +923,19 @@ extension BLEController: CBPeripheralDelegate {
                 self.diagValues[uuid.uuidString] = value
             }
 
-            if uuid == (self.uuidOverrides.isWound.map { CBUUID(string: $0) } ?? uuidFB10) {
+            if uuid == self.isWoundUUID {
                 let wound = value.first == 0x01
                 self.discoveredCamera?.isWound = wound
                 self.log("IS_WOUND: \(wound ? "wound ✓" : "not wound ✗")")
-            } else if uuid == (self.uuidOverrides.wifiStatus.map { CBUUID(string: $0) } ?? uuidFB02) {
+            } else if uuid == uuidFB21 {
+                // The camera's authoritative roll state — drives the progress ring.
+                if let parsed = RollState.parse(value) {
+                    self.rollState = parsed
+                    self.log("ROLL: \(parsed.capturedMedia)/\(parsed.length) captured")
+                }
+            } else if uuid == self.wifiStatusUUID {
                 self.parseWiFiStatusData(value)
-            } else if uuid == uuidFB05 {
+            } else if uuid == self.apSSIDUUID {
                 // FB05 read-back is ground truth: what the camera is ACTUALLY
                 // broadcasting, which may differ from what we wrote (or thought we
                 // wrote). FB06 (password) has no read-back, so we can only trust a
@@ -981,6 +1025,8 @@ struct BLEUUIDOverrides {
     var wifiTrigger: String?
     var wifiStatus: String?
     var isWound: String?
+    var apSSID: String?
+    var apPassword: String?
 }
 
 // MARK: - Data helpers

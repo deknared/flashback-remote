@@ -197,6 +197,8 @@ struct SettingsView: View {
                 uuidField("WiFi trigger (FB04)", text: $settings.overrideFB04, placeholder: "FB04")
                 uuidField("WiFi status (FB02)", text: $settings.overrideFB02, placeholder: "FB02")
                 uuidField("Is wound (FB10)", text: $settings.overrideFB10, placeholder: "FB10")
+                uuidField("AP name (FB05)", text: $settings.overrideFB05, placeholder: "FB05")
+                uuidField("AP password (FB06)", text: $settings.overrideFB06, placeholder: "FB06")
 
                 HStack {
                     Button("Save") { settings.saveUUIDOverrides() }
@@ -248,6 +250,14 @@ struct WhatsNewView: View {
     }
 
     private let releases: [Release] = [
+        Release(version: "1.4.0", notes: [
+            "Library no longer stutters when opening a large collection — scanning now happens in the background and photo dates are cached",
+            "Roll progress ring now reads the camera's own roll state, so it can't drift from reality",
+            "Sort each group differently with the new sort button on any group header",
+            "UUID Overrides in Settings now actually take effect (they were previously saved but ignored), and cover the WiFi name/password characteristics too",
+            "The Library tells you when your save location means transfers won't show up there",
+            "Thumbnail cache no longer grows without limit"
+        ]),
         Release(version: "1.3.7", notes: [
             "Clearer error when the phone isn't paired with the camera (\"Not paired — open the official Flashback app to re-pair\") instead of a cryptic system message",
             "Fixed the WiFi network name/password shown in the app sometimes not matching what the camera actually broadcasts — the app now only shows credentials it has confirmed the camera accepted"

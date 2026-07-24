@@ -268,10 +268,19 @@ struct CameraTab: View {
     @ViewBuilder
     private func cameraInfoSection(_ camera: DiscoveredCamera) -> some View {
         if let mfr = camera.manufacturerData {
-            let total = max(vm.rollLength, 1)
-            let used = max(0, total - Int(mfr.mediaRemaining))
+            // Prefer the camera's own roll state (FB21) — it can't drift. Only fall
+            // back to inferring from the advertisement when FB21 isn't readable.
+            let total: Int
+            let used: Int
+            if let roll = ble.rollState, roll.length > 0 {
+                total = roll.length
+                used = min(roll.capturedMedia, roll.length)
+            } else {
+                total = max(vm.rollLength, 1)
+                used = min(max(0, total - Int(mfr.mediaRemaining)), total)
+            }
             Section {
-                RollRingView(shotsUsed: min(used, total), rollTotal: total,
+                RollRingView(shotsUsed: used, rollTotal: total,
                             batteryPercent: mfr.batteryPercent, rssi: camera.rssi)
                     .padding(.horizontal, 4)
             }

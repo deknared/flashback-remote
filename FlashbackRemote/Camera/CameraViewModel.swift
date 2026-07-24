@@ -6,8 +6,6 @@ final class CameraViewModel: ObservableObject {
     @Published var rollLength: Int {
         didSet { UserDefaults.standard.set(rollLength, forKey: "lastRollLength") }
     }
-    @Published var isConfiguring: Bool = false
-
     init() {
         let saved = UserDefaults.standard.integer(forKey: "lastRollLength")
         rollLength = saved > 0 ? min(saved, 99) : 36

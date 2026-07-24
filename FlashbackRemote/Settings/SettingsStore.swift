@@ -92,6 +92,8 @@ final class SettingsStore: ObservableObject {
     @Published var overrideFB04: String = ""
     @Published var overrideFB02: String = ""
     @Published var overrideFB10: String = ""
+    @Published var overrideFB05: String = ""
+    @Published var overrideFB06: String = ""
 
     // Seen firmware versions: [version: dateFirstSeen]
     @Published var seenFirmwareVersions: [String: Date] = [:]
@@ -119,6 +121,8 @@ final class SettingsStore: ObservableObject {
         overrideFB04        = UserDefaults.standard.string(forKey: "ov_FB04") ?? ""
         overrideFB02        = UserDefaults.standard.string(forKey: "ov_FB02") ?? ""
         overrideFB10        = UserDefaults.standard.string(forKey: "ov_FB10") ?? ""
+        overrideFB05        = UserDefaults.standard.string(forKey: "ov_FB05") ?? ""
+        overrideFB06        = UserDefaults.standard.string(forKey: "ov_FB06") ?? ""
 
         if let raw = UserDefaults.standard.dictionary(forKey: "seenFirmware") as? [String: Date] {
             seenFirmwareVersions = raw
@@ -148,7 +152,8 @@ final class SettingsStore: ObservableObject {
     func resetUUIDOverrides() {
         overrideServiceUUID = ""; overrideFB00 = ""; overrideFB20 = ""
         overrideFB01 = ""; overrideFB04 = ""; overrideFB02 = ""; overrideFB10 = ""
-        ["ov_serviceUUID","ov_FB00","ov_FB20","ov_FB01","ov_FB04","ov_FB02","ov_FB10"]
+        overrideFB05 = ""; overrideFB06 = ""
+        ["ov_serviceUUID","ov_FB00","ov_FB20","ov_FB01","ov_FB04","ov_FB02","ov_FB10","ov_FB05","ov_FB06"]
             .forEach { UserDefaults.standard.removeObject(forKey: $0) }
     }
 
@@ -160,6 +165,8 @@ final class SettingsStore: ObservableObject {
         UserDefaults.standard.set(overrideFB04, forKey: "ov_FB04")
         UserDefaults.standard.set(overrideFB02, forKey: "ov_FB02")
         UserDefaults.standard.set(overrideFB10, forKey: "ov_FB10")
+        UserDefaults.standard.set(overrideFB05, forKey: "ov_FB05")
+        UserDefaults.standard.set(overrideFB06, forKey: "ov_FB06")
     }
 
     var bleUUIDOverrides: BLEUUIDOverrides {
@@ -171,7 +178,9 @@ final class SettingsStore: ObservableObject {
             wifiMode:      overrideFB01.isEmpty ? nil : overrideFB01,
             wifiTrigger:   overrideFB04.isEmpty ? nil : overrideFB04,
             wifiStatus:    overrideFB02.isEmpty ? nil : overrideFB02,
-            isWound:       overrideFB10.isEmpty ? nil : overrideFB10
+            isWound:       overrideFB10.isEmpty ? nil : overrideFB10,
+            apSSID:        overrideFB05.isEmpty ? nil : overrideFB05,
+            apPassword:    overrideFB06.isEmpty ? nil : overrideFB06
         )
     }
 }

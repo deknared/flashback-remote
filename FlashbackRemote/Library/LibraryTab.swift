@@ -9,6 +9,7 @@ struct ViewerContext: Identifiable {
 
 struct LibraryTab: View {
     @StateObject private var vm = LibraryViewModel()
+    @EnvironmentObject var settings: SettingsStore
     @Binding var hideTabBar: Bool
 
     @State private var viewer: ViewerContext?
@@ -37,7 +38,11 @@ struct LibraryTab: View {
         NavigationStack {
             Group {
                 if vm.groups.isEmpty && !vm.hasBin {
-                    emptyView
+                    if vm.isLoading {
+                        ProgressView().controlSize(.large)
+                    } else {
+                        emptyView
+                    }
                 } else {
                     content
                 }
@@ -182,6 +187,31 @@ struct LibraryTab: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
+            // Per-group sort. The bin keeps its fixed deletion-date order.
+            if id != LibraryViewModel.recycleBinID {
+                Menu {
+                    Button {
+                        vm.setSortOrder(nil, forGroupID: id)
+                    } label: {
+                        Label("Default (\(vm.sortOrder.label))",
+                              systemImage: vm.groupSortOverrides[id] == nil ? "checkmark" : "")
+                    }
+                    Divider()
+                    ForEach(LibrarySortOrder.allCases, id: \.self) { order in
+                        Button {
+                            vm.setSortOrder(order, forGroupID: id)
+                        } label: {
+                            Label(order.label,
+                                  systemImage: vm.groupSortOverrides[id] == order ? "checkmark" : "")
+                        }
+                    }
+                } label: {
+                    Image(systemName: vm.groupSortOverrides[id] == nil
+                          ? "arrow.up.arrow.down" : "arrow.up.arrow.down.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .padding(.horizontal, 12)
         .contentShape(Rectangle())
@@ -319,11 +349,22 @@ struct LibraryTab: View {
                 .symbolRenderingMode(.hierarchical)
             Text("No photos yet")
                 .font(.title3.bold())
-            Text("This reads files saved to **On My iPhone → Flashback Remote**. Transfer with **Save Location = Files App**, then they appear here to preview, group and prune.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+            // Call out the most common reason the Library looks empty: transfers
+            // are going somewhere this tab can't read.
+            if settings.saveLocation != .files {
+                Label("Your save location is **\(settings.saveLocation.displayName)** — the Library only reads On My iPhone → Flashback Remote. Switch to **Files App** in Settings to see transfers here.",
+                      systemImage: "exclamationmark.triangle")
+                    .font(.subheadline)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            } else {
+                Text("This reads files saved to **On My iPhone → Flashback Remote**. Transfer some photos and they'll appear here to preview, group and prune.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
             Button { vm.load() } label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }

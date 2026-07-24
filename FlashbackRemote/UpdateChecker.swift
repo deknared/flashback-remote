@@ -27,8 +27,6 @@ final class UpdateChecker: ObservableObject {
         return latest
     }
 
-    @Published private(set) var lastCheck: Date?
-
     // Safe to call often (e.g. on every app foregrounding): the fetch is ~8KB,
     // and failures (like being on the camera's internet-less WiFi) just leave
     // the previous state — the next foreground retries automatically.
@@ -45,7 +43,6 @@ final class UpdateChecker: ObservableObject {
                   let decoded = try? JSONDecoder().decode(Source.self, from: data),
                   let latest = decoded.apps.first?.versions.first?.version else { return }
             latestVersion = latest
-            lastCheck = Date()
         }
     }
 

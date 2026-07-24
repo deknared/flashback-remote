@@ -4,7 +4,13 @@ import UserNotifications
 // Local notifications (no server / push entitlement needed) so the user gets
 // alerted when a long transfer finishes while the app is backgrounded.
 enum Notifier {
+    private static var didRequestAuthorization = false
+
+    /// Called once at launch. Guarded so repeated calls (e.g. one per transfer,
+    /// as this used to be) don't re-enter the authorization API needlessly.
     static func requestAuthorization() {
+        guard !didRequestAuthorization else { return }
+        didRequestAuthorization = true
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 

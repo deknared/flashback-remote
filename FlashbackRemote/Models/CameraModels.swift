@@ -49,3 +49,24 @@ enum WiFiStatus {
     case up(ip: String)
     case failed(String)
 }
+
+// The camera's own view of the current roll, decoded from the ROLL characteristic
+// (FB21), e.g. {"film_type_id":1,"length":99,"captured_media":3,...}. Preferred
+// over inferring shots-used from the advertisement's mediaRemaining, which
+// silently drifts whenever the app's idea of roll length differs from the camera's.
+struct RollState: Equatable {
+    let length: Int
+    let capturedMedia: Int
+    let filmTypeName: String?
+
+    var shotsRemaining: Int { max(0, length - capturedMedia) }
+
+    static func parse(_ data: Data) -> RollState? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let length = json["length"] as? Int,
+              let captured = json["captured_media"] as? Int else { return nil }
+        return RollState(length: length,
+                         capturedMedia: captured,
+                         filmTypeName: json["film_type_name"] as? String)
+    }
+}
