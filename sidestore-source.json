@@ -14,6 +14,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.4.0",
+          "date": "2026-07-25",
+          "localizedDescription": "Codebase audit fixes.\n\n• Library no longer stutters when opening a large collection — scanning happens in the background and photo dates are cached\n• Roll progress ring now reads the camera's own roll state, so it can't drift from reality\n• Sort each group differently with the new sort button on any group header\n• UUID Overrides in Settings now actually take effect (previously saved but ignored), and cover the WiFi name/password characteristics too\n• The Library tells you when your save location means transfers won't show up there\n• Thumbnail cache no longer grows without limit",
+          "downloadURL": "https://github.com/deknared/flashback-remote/releases/download/v1.4.0/FlashbackRemote.ipa",
+          "size": 598161,
+          "minOSVersion": "16.0"
+        },
+        {
           "version": "1.3.7",
           "date": "2026-07-19",
           "localizedDescription": "BLE pairing and WiFi credential fixes.\n\n• Clearer error when the phone isn't paired with the camera (\"Not paired — open the official Flashback app to re-pair\") instead of a cryptic system message\n• Fixed the WiFi network name/password shown in the app sometimes not matching what the camera actually broadcasts — the app now only shows credentials it has confirmed the camera accepted",
